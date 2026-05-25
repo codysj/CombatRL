@@ -14,8 +14,13 @@ def make_agent_state(**overrides: object) -> AgentState:
         "hp": 160.0,
         "max_hp": 160.0,
         "alive": True,
+        "movement_speed": 2.2,
+        "attack_range": 8.0,
+        "attack_damage": 14.0,
         "attack_cooldown_ticks": 0,
+        "attack_cooldown_max_ticks": 16,
         "ability_cooldown_ticks": 0,
+        "facing_vector": (1.0, 0.0),
         "status_effects": [],
         "current_target_id": None,
         "last_action_id": None,
@@ -48,3 +53,13 @@ def test_negative_cooldown_fails() -> None:
 def test_alive_mismatch_fails() -> None:
     with pytest.raises(ValidationError):
         make_agent_state(hp=0.0, alive=True)
+
+
+def test_negative_attack_damage_fails() -> None:
+    with pytest.raises(ValidationError):
+        make_agent_state(attack_damage=-1.0)
+
+
+def test_zero_cooldown_max_fails() -> None:
+    with pytest.raises(ValidationError):
+        make_agent_state(attack_cooldown_max_ticks=0)

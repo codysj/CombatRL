@@ -51,7 +51,7 @@ class MatchState(BaseModel):
             raise ValueError(msg)
 
         if self.terminal_reason == "timeout" and self.winner_team_id is not None:
-            msg = "timeout terminal states must not have a winner in P1"
+            msg = "timeout terminal states must not have a winner"
             raise ValueError(msg)
 
         return self

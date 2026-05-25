@@ -21,25 +21,30 @@ class AgentState(BaseModel):
     hp: float
     max_hp: float = Field(gt=0.0)
     alive: bool
+    movement_speed: float = Field(gt=0.0)
+    attack_range: float = Field(gt=0.0)
+    attack_damage: float = Field(ge=0.0)
     attack_cooldown_ticks: int = Field(ge=0)
+    attack_cooldown_max_ticks: int = Field(gt=0)
     ability_cooldown_ticks: int = Field(ge=0)
+    facing_vector: tuple[float, float]
     status_effects: list[str]
     current_target_id: str | None
     last_action_id: int | None
 
-    @field_validator("position", "velocity")
+    @field_validator("position", "velocity", "facing_vector")
     @classmethod
     def validate_finite_vector(cls, value: tuple[float, float]) -> tuple[float, float]:
         if not math.isfinite(value[0]) or not math.isfinite(value[1]):
-            msg = "position and velocity values must be finite"
+            msg = "vector values must be finite"
             raise ValueError(msg)
         return value
 
-    @field_validator("hp", "max_hp")
+    @field_validator("hp", "max_hp", "movement_speed", "attack_range", "attack_damage")
     @classmethod
-    def validate_finite_hp(cls, value: float) -> float:
+    def validate_finite_float(cls, value: float) -> float:
         if not math.isfinite(value):
-            msg = "hp values must be finite"
+            msg = "numeric values must be finite"
             raise ValueError(msg)
         return value
 
