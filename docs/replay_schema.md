@@ -94,6 +94,13 @@ Validate a replay with:
 uv run python scripts/validate_replay.py artifacts/replays/<replay-dir>
 ```
 
+P7 can also generate a replay from the 2v2 Gymnasium environment:
+
+```powershell
+uv run python scripts/run_2v2_env_episode.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --seed 42 --policy random --save-replay
+uv run python scripts/validate_replay.py <printed_replay_path>
+```
+
 The validator checks required files, schema validity, strictly increasing frame
 ticks, event references, counts, event tick ranges, frame event tick agreement,
 and final summary agreement with the final frame scoreboard.

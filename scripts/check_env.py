@@ -16,6 +16,7 @@ DEFAULT_ENV_CONFIG = Path("configs/env/gym_2v2_controlled_ranged.yaml")
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check CombatRLGymEnv random rollouts.")
     parser.add_argument("--config", type=Path, default=DEFAULT_ENV_CONFIG)
+    parser.add_argument("--env-config", type=Path, dest="env_config", default=None)
     parser.add_argument("--episodes", type=int, default=5)
     parser.add_argument("--max-steps", type=int, default=500)
     parser.add_argument("--seed", type=int, default=42)
@@ -24,7 +25,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    env = CombatRLGymEnv(args.config)
+    env_config = args.env_config if args.env_config is not None else args.config
+    env = CombatRLGymEnv(env_config)
     rng = np.random.default_rng(args.seed)
     total_reward = 0.0
     terminated_count = 0
@@ -37,7 +39,10 @@ def main() -> int:
         print(f"observation_shape: {observation.shape}")
         print(f"action_space: {env.action_space}")
         print(f"controlled_agent_id: {info['controlled_agent_id']}")
+        print(f"controlled_team_id: {info['controlled_team_id']}")
         print(f"scenario_id: {info['scenario_id']}")
+        print(f"ally_agent_ids: {info['ally_agent_ids']}")
+        print(f"enemy_agent_ids: {info['enemy_agent_ids']}")
 
         for episode in range(args.episodes):
             if episode > 0:
@@ -72,6 +77,10 @@ def main() -> int:
     print(f"terminated_count: {terminated_count}")
     print(f"truncated_count: {truncated_count}")
     print(f"final_tick: {final_tick}")
+    print(f"team0_alive: {info.get('team0_alive')}")
+    print(f"team1_alive: {info.get('team1_alive')}")
+    print(f"ally_alive_count: {info.get('ally_alive_count')}")
+    print(f"enemy_alive_count: {info.get('enemy_alive_count')}")
     print(f"no_nan: {str(nan_count == 0).lower()}")
     return 0 if nan_count == 0 else 1
 

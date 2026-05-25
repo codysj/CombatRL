@@ -124,3 +124,27 @@ def test_ally_death_penalty_applies_for_controlled_ally_death() -> None:
     reward = RewardBuilder().compute(previous, current, [], CONTROLLED_AGENT_ID)
 
     assert reward.components["ally_death_penalty"] == -0.25
+
+
+def test_controlled_agent_death_penalty_applies() -> None:
+    previous = make_state()
+    current = previous.model_copy(deep=True)
+    eliminate(current.agents[CONTROLLED_AGENT_ID])
+
+    reward = RewardBuilder().compute(previous, current, [], CONTROLLED_AGENT_ID)
+
+    assert reward.components["death_penalty"] == -0.5
+
+
+def test_terminal_team_outcome_uses_controlled_team_not_agent_survival() -> None:
+    previous = make_state()
+    current = previous.model_copy(deep=True)
+    eliminate(current.agents[CONTROLLED_AGENT_ID])
+    current.terminal = True
+    current.terminal_reason = "elimination"
+    current.winner_team_id = 0
+
+    reward = RewardBuilder().compute(previous, current, [], CONTROLLED_AGENT_ID)
+
+    assert reward.components["win_bonus"] == 1.0
+    assert reward.components["loss_penalty"] == 0.0

@@ -23,6 +23,12 @@ Default config:
 configs/training/ppo_1v1_baseline.yaml
 ```
 
+2v2 P7 config:
+
+```text
+configs/training/ppo_2v2_baseline.yaml
+```
+
 Key fields:
 
 - `env_config_path`: Gym env config used for training and evaluation.
@@ -50,6 +56,7 @@ Smoke train:
 
 ```powershell
 uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml --smoke
+uv run python scripts/train_ppo.py --config configs/training/ppo_2v2_baseline.yaml --smoke
 ```
 
 Longer train:
@@ -68,6 +75,7 @@ uv run python scripts/train_ppo.py --smoke --total-timesteps 2048 --seed 7
 
 ```powershell
 uv run python scripts/evaluate_checkpoint.py <run_dir>/model_final.zip --env-config configs/env/gym_1v1_ranged_vs_random.yaml --episodes 5 --seed-start 1000
+uv run python scripts/evaluate_checkpoint.py <run_dir>/model_final.zip --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 3 --seed-start 1000
 ```
 
 Add `--save-replay` to write one evaluated-policy replay under
@@ -85,6 +93,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
 uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml --smoke
+uv run python scripts/train_ppo.py --config configs/training/ppo_2v2_baseline.yaml --smoke
 uv run python scripts/evaluate_checkpoint.py <smoke_run_dir>/model_final.zip --env-config configs/env/gym_1v1_ranged_vs_random.yaml --episodes 2
 ```
 

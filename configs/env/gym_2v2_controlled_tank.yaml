@@ -1,10 +1,10 @@
-env_id: CombatRL-2v2-Controlled-Ranged-v0
+env_id: CombatRL-2v2-Controlled-Tank-v0
 simulation_config_path: configs/env/mvp_2v2_elimination.yaml
-controlled_agent_id: team0_ranged_dps_0
+controlled_agent_id: team0_tank_0
 opponent_policy_ids:
   - aggressive
   - random
-teammate_policy_id: protector
+teammate_policy_id: kiter
 scripted_policy_by_agent_id: null
 reward_config: {}
 observation_schema_version: "1.0"

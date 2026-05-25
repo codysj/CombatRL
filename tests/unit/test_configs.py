@@ -31,6 +31,12 @@ def test_default_config_has_two_teams_and_four_agents() -> None:
 
     assert len(config.teams) == 2
     assert sum(len(team.agents) for team in config.teams) == 4
+    assert {agent.agent_id for team in config.teams for agent in team.agents} == {
+        "team0_tank_0",
+        "team0_ranged_dps_0",
+        "team1_tank_0",
+        "team1_ranged_dps_0",
+    }
 
 
 def test_duplicate_agent_ids_fail_validation() -> None:
@@ -52,9 +58,19 @@ def test_out_of_bounds_spawn_fails_validation() -> None:
 def test_default_environment_config_loads() -> None:
     config = load_environment_config("configs/env/gym_2v2_controlled_ranged.yaml")
 
-    assert config.env_id == "CombatRL-MVP-v0"
+    assert config.env_id == "CombatRL-2v2-Controlled-Ranged-v0"
     assert config.capture_replays is False
     assert config.replay_sample_rate == 0.0
+    assert config.controlled_agent_id == "team0_ranged_dps_0"
+    assert config.teammate_policy_id == "protector"
+    assert config.opponent_policy_ids == ["aggressive", "random"]
+
+
+def test_controlled_tank_environment_config_loads() -> None:
+    config = load_environment_config("configs/env/gym_2v2_controlled_tank.yaml")
+
+    assert config.controlled_agent_id == "team0_tank_0"
+    assert config.teammate_policy_id == "kiter"
 
 
 def test_environment_config_rejects_invalid_decision_interval() -> None:

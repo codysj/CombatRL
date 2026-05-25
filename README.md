@@ -7,13 +7,13 @@ schemas and replay-first debugging so later systems can be tested independently.
 
 ## Phase Status
 
-Phase P6 adds the first Stable-Baselines3 PPO training baseline on top of the
-Gymnasium wrapper. The project can load the default MVP config,
-initialize a 2v2 match, run bot-vs-bot matches to elimination or timeout, save
-replay artifacts, validate them, render saved frames without recomputing
-simulation logic, run headless random rollouts through `CombatRLGymEnv`, train
-a small PPO policy in a 1v1 scenario, save SB3 checkpoints, evaluate
-checkpoints, and generate sample replay artifacts from evaluated policies.
+Phase P7 upgrades the Gymnasium wrapper into a stable 2v2 team-aware
+environment. The project can load the default MVP config, initialize a 2v2
+match, run bot-vs-bot matches to elimination or timeout, save replay artifacts,
+validate them, render saved frames without recomputing simulation logic, run
+headless 2v2 rollouts through `CombatRLGymEnv`, train PPO smoke baselines for
+1v1 or 2v2 configs, save SB3 checkpoints, evaluate checkpoints, and generate
+sample replay artifacts from evaluated policies.
 
 Behavior profiles, objective control, pathfinding, frontend, backend, NLP,
 PettingZoo, self-play, opponent pools, and advanced MARL systems are
@@ -86,13 +86,14 @@ uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defe
 Run the Gymnasium environment check:
 
 ```powershell
-uv run python scripts/check_env.py --episodes 5 --seed 42
+uv run python scripts/check_env.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 5 --seed 42
 ```
 
 Run a short PPO smoke train:
 
 ```powershell
 uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml --smoke
+uv run python scripts/train_ppo.py --config configs/training/ppo_2v2_baseline.yaml --smoke
 ```
 
 Evaluate a checkpoint:
@@ -156,8 +157,8 @@ configs/env/gym_2v2_controlled_ranged.yaml
 ```
 
 The wrapper controls `team0_ranged_dps_0`, runs a scripted `protector`
-teammate, and uses random scripted opponents by default. Gymnasium is only a
-wrapper: simulator state transitions and win conditions remain in
+teammate, and uses `aggressive` plus `random` scripted opponents by default.
+Gymnasium is only a wrapper: simulator state transitions and win conditions remain in
 `SimulationEngine`.
 
 Spaces:
@@ -183,6 +184,13 @@ enemy slots, arena features, and simple tactical features. Rewards expose a
 breakdown with win/loss, damage dealt, damage taken, death, ally death, invalid
 action, and time components.
 
+Run one 2v2 env episode and save a replay:
+
+```powershell
+uv run python scripts/run_2v2_env_episode.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --seed 42 --policy random --save-replay
+uv run python scripts/validate_replay.py <replay_path>
+```
+
 Basic usage:
 
 ```python
@@ -202,6 +210,7 @@ Default training config:
 
 ```text
 configs/training/ppo_1v1_baseline.yaml
+configs/training/ppo_2v2_baseline.yaml
 ```
 
 The first baseline uses Stable-Baselines3 PPO with `MlpPolicy`, `DummyVecEnv`,
@@ -293,7 +302,9 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
 uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml --smoke
-uv run python scripts/check_env.py --episodes 3 --seed 42
+uv run python scripts/train_ppo.py --config configs/training/ppo_2v2_baseline.yaml --smoke
+uv run python scripts/check_env.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 3 --seed 42
+uv run python scripts/run_2v2_env_episode.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --seed 42 --policy random --save-replay
 uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --seed 42 --save-replay
 ```
 
@@ -320,6 +331,7 @@ ignoring timestamps and output directory.
 
 See `docs/agents.md`, `docs/phase_p3.md`, `docs/phase_p4.md`,
 `docs/phase_p5.md`, `docs/phase_p6.md`, `docs/rl_environment.md`, and
-`docs/rl_training.md` for details.
+`docs/phase_p7.md`, `docs/rl_environment.md`, and `docs/rl_training.md` for
+details.
 
-Next phase: P7 2v2 Team Environment.
+Next phase: P8 Behavior Profiles.

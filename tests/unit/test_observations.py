@@ -69,6 +69,15 @@ def test_missing_entity_slots_filled_consistently() -> None:
     assert observation.values[_feature_index("enemy2_distance")] == 1.0
 
 
+def test_2v2_ally_and_enemy_slots_are_populated() -> None:
+    observation = ObservationBuilder().build_observation(make_state(), CONTROLLED_AGENT_ID)
+
+    assert observation.values[_feature_index("ally_alive")] == 1.0
+    assert observation.values[_feature_index("ally_role_tank")] == 1.0
+    assert observation.values[_feature_index("enemy1_alive")] == 1.0
+    assert observation.values[_feature_index("enemy2_alive")] == 1.0
+
+
 def test_dead_agents_represented_consistently() -> None:
     state = make_state()
     eliminate(state.agents["team1_ranged_dps_0"])
@@ -79,6 +88,42 @@ def test_dead_agents_represented_consistently() -> None:
     assert observation.values[_feature_index("enemy1_role_tank")] == 1.0
     assert observation.values[_feature_index("enemy2_alive")] == 0.0
     assert observation.values[_feature_index("enemy2_hp_norm")] == 0.0
+
+
+def test_dead_ally_encoding_is_stable() -> None:
+    state = make_state()
+    eliminate(state.agents["team0_tank_0"])
+
+    observation = ObservationBuilder().build_observation(state, CONTROLLED_AGENT_ID)
+
+    assert observation.values[_feature_index("ally_alive")] == 0.0
+    assert observation.values[_feature_index("ally_hp_norm")] == 0.0
+    assert observation.values[_feature_index("ally_role_tank")] == 1.0
+
+
+def test_ally_threat_indicator_uses_enemy_attack_range() -> None:
+    state = make_state()
+    ally = state.agents["team0_tank_0"]
+    enemy = state.agents["team1_tank_0"]
+    enemy.position = (ally.position[0] + enemy.attack_range * 0.5, ally.position[1])
+
+    observation = ObservationBuilder().build_observation(state, CONTROLLED_AGENT_ID)
+
+    assert observation.values[_feature_index("ally_threat_indicator")] == 1.0
+
+
+def test_enemy_in_attack_range_uses_controlled_basic_attack_range() -> None:
+    state = make_state()
+    controlled = state.agents[CONTROLLED_AGENT_ID]
+    enemy = state.agents["team1_ranged_dps_0"]
+    enemy.position = (
+        controlled.position[0] + controlled.attack_range * 0.5,
+        controlled.position[1],
+    )
+
+    observation = ObservationBuilder().build_observation(state, CONTROLLED_AGENT_ID)
+
+    assert observation.values[_feature_index("enemy1_in_attack_range")] == 1.0
 
 
 def test_repeated_calls_produce_same_feature_name_order() -> None:

@@ -120,6 +120,7 @@ class EnvironmentConfig(BaseModel):
     controlled_agent_id: str
     opponent_policy_ids: list[str]
     teammate_policy_id: str | None = None
+    scripted_policy_by_agent_id: dict[str, str] | None = None
     reward_config: dict[str, float] = Field(default_factory=dict)
     observation_schema_version: str
     action_schema_version: str

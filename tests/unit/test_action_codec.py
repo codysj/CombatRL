@@ -58,3 +58,12 @@ def test_attack_nearest_invalid_if_no_live_enemies() -> None:
     assert mask[codec.encode(ActionType.ATTACK_NEAREST)] == 0
     for action_type in movement_actions():
         assert mask[codec.encode(action_type)] == 1
+
+
+def test_attack_nearest_valid_if_any_live_enemy_exists_in_2v2() -> None:
+    state = make_state()
+    codec = ActionCodec()
+
+    mask = codec.valid_action_mask(state, "team0_ranged_dps_0")
+
+    assert mask[codec.encode(ActionType.ATTACK_NEAREST)] == 1

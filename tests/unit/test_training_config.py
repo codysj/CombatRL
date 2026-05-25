@@ -17,6 +17,14 @@ def test_loads_default_ppo_training_config() -> None:
     assert config.smoke_total_timesteps <= config.total_timesteps
 
 
+def test_loads_2v2_ppo_training_config() -> None:
+    config = load_training_config("configs/training/ppo_2v2_baseline.yaml")
+
+    assert config.run_name == "ppo_2v2_baseline"
+    assert config.env_config_path == "configs/env/gym_2v2_controlled_ranged.yaml"
+    assert config.smoke_total_timesteps <= config.total_timesteps
+
+
 def test_rejects_invalid_n_envs() -> None:
     config = load_training_config(CONFIG_PATH).model_dump(mode="json")
     config["n_envs"] = 0

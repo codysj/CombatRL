@@ -1,7 +1,9 @@
 # CombatRL Gymnasium Environment
 
-Phase P5 adds `CombatRLGymEnv`, a single-agent Gymnasium wrapper around the
-deterministic simulator. Gymnasium does not own game rules: movement, combat,
+`CombatRLGymEnv` is a single-agent Gymnasium wrapper around the deterministic
+simulator. In the default P7 setup, one controlled agent acts alongside one
+scripted teammate against two scripted opponents. Gymnasium does not own game
+rules: movement, combat,
 cooldowns, deaths, terminal state, events, and invariants remain in
 `SimulationEngine`.
 
@@ -11,10 +13,22 @@ Default config: `configs/env/gym_2v2_controlled_ranged.yaml`
 
 - Controlled agent: `team0_ranged_dps_0`
 - Teammate policy: `protector`
-- Opponent policies: `random`, `random`
+- Opponent policies: `aggressive`, `random`
 - Simulation config: `configs/env/mvp_2v2_elimination.yaml`
 - `render_mode=None` by default
 - Replay capture disabled by default
+
+Optional explicit policy assignment:
+
+```yaml
+scripted_policy_by_agent_id:
+  team0_tank_0: protector
+  team1_tank_0: aggressive
+  team1_ranged_dps_0: random
+```
+
+When this mapping is present, every non-controlled agent must be assigned a
+known scripted policy and the controlled agent must be omitted.
 
 ## API Contract
 
@@ -37,6 +51,10 @@ Termination and truncation:
 - Elimination win/loss: `terminated=True`, `truncated=False`
 - Max ticks: `terminated=False`, `truncated=True`
 - Invariant failure: `terminated=False`, `truncated=True`, with `info["error"]`
+
+Step `info` includes match identity, controlled team, ally/enemy IDs, alive
+counts, terminal reason, winner, reward breakdown, invalid-action flag, next
+action mask, and event count.
 
 ## Action Space
 
@@ -71,7 +89,7 @@ The observation vector has 49 named features:
 Entity ordering is deterministic: live entities before dead entities, then
 increasing distance from the controlled agent, then `agent_id`. Missing slots are
 filled with zero flags, zero relative position, distance `1.0`, and zero role
-values. Recent damage flags are placeholders set to `0.0` in P5.
+values. Recent damage flags are placeholders set to `0.0` in P7.
 
 ## Reward Components
 
@@ -88,11 +106,26 @@ Every `RewardBreakdown` includes these components:
 
 `reward_config` scales component values multiplicatively and may be partial.
 
+## 2v2 Replay And Evaluation
+
+Run one 2v2 episode through the Gym env and save a replay:
+
+```powershell
+uv run python scripts/run_2v2_env_episode.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --seed 42 --policy random --save-replay
+```
+
+Run a lightweight 2v2 baseline summary:
+
+```powershell
+uv run python scripts/evaluate_2v2_baseline.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 10 --seed 42
+```
+
 ## Limitations
 
-P5 intentionally does not include PPO training, Stable-Baselines3 scripts,
-checkpoints, evaluation suites, behavior profiles, PettingZoo, self-play,
-support/healer mechanics, objective-control mode, NLP, or frontend/backend code.
+P7 intentionally does not include behavior profiles, NLP, frontend/backend,
+PettingZoo, self-play, opponent pools, shared team policies, centralized
+critics, support/healer mechanics, objective-control mode, advanced metrics, or
+full simultaneous multi-agent learning.
 
 ## Manual Verification
 
@@ -102,14 +135,15 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
-uv run python scripts/check_env.py --episodes 3 --seed 42
+uv run python scripts/check_env.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 3 --seed 42
+uv run python scripts/run_2v2_env_episode.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --seed 42 --policy random --save-replay
 ```
 
 Determinism check:
 
 ```powershell
-uv run python scripts/check_env.py --episodes 2 --seed 42
-uv run python scripts/check_env.py --episodes 2 --seed 42
+uv run python scripts/check_env.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 2 --seed 42
+uv run python scripts/check_env.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 2 --seed 42
 ```
 
 The summaries should match for fixed seeds.

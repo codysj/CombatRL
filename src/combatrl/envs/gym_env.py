@@ -52,6 +52,7 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         }:
             msg = f"controlled_agent_id {self.env_config.controlled_agent_id!r} is not in config"
             raise ValueError(msg)
+        self._validate_scripted_policy_config()
 
         self.action_codec = ActionCodec()
         self.observation_builder = ObservationBuilder()
@@ -85,7 +86,19 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         self._truncated_error = None
         self._policy_by_agent_id = self._build_policy_map(self._engine.state, self._seed)
         observation = self._build_numpy_observation(self._engine.state)
-        return observation, self._base_info(self._engine.state)
+        info = self._base_info(self._engine.state)
+        info.update(
+            {
+                "reward_breakdown": None,
+                "invalid_action": False,
+                "action_mask": self.action_codec.valid_action_mask(
+                    self._engine.state,
+                    self.env_config.controlled_agent_id,
+                ),
+                "events_count": 0,
+            }
+        )
+        return observation, info
 
     def step(
         self,
@@ -210,13 +223,22 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         ]
 
         policy_by_agent_id: dict[str, AgentPolicy] = {}
-        for index, agent_id in enumerate(opponents):
-            policy_id = _policy_id_for_index(self.env_config.opponent_policy_ids, index)
+        if self.env_config.scripted_policy_by_agent_id is not None:
+            scripted_policy_ids = self.env_config.scripted_policy_by_agent_id
+            for index, agent_id in enumerate(sorted(opponents + teammates)):
+                policy_id = scripted_policy_ids[agent_id]
+                policy = create_policy(policy_id, seed=seed + 100 + index)
+                policy.reset(seed + 100 + index)
+                policy_by_agent_id[agent_id] = policy
+            return policy_by_agent_id
+
+        for index, agent_id in enumerate(teammates):
+            policy_id = self.env_config.teammate_policy_id or "random"
             policy = create_policy(policy_id, seed=seed + 100 + index)
             policy.reset(seed + 100 + index)
             policy_by_agent_id[agent_id] = policy
-        for index, agent_id in enumerate(teammates):
-            policy_id = self.env_config.teammate_policy_id or "random"
+        for index, agent_id in enumerate(opponents):
+            policy_id = _policy_id_for_index(self.env_config.opponent_policy_ids, index)
             policy = create_policy(policy_id, seed=seed + 200 + index)
             policy.reset(seed + 200 + index)
             policy_by_agent_id[agent_id] = policy
@@ -242,13 +264,76 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         return observation_to_numpy(observation)
 
     def _base_info(self, state: MatchState) -> dict[str, Any]:
+        controlled_agent = state.agents[self.env_config.controlled_agent_id]
+        ally_agent_ids = [
+            agent_id
+            for agent_id in sorted(state.agents)
+            if agent_id != controlled_agent.agent_id
+            and state.agents[agent_id].team_id == controlled_agent.team_id
+        ]
+        enemy_agent_ids = [
+            agent_id
+            for agent_id in sorted(state.agents)
+            if state.agents[agent_id].team_id != controlled_agent.team_id
+        ]
+        team0_agents = [agent for agent in state.agents.values() if agent.team_id == 0]
+        team1_agents = [agent for agent in state.agents.values() if agent.team_id == 1]
         return {
             "match_id": state.match_id,
             "seed": state.seed,
             "controlled_agent_id": self.env_config.controlled_agent_id,
+            "controlled_team_id": controlled_agent.team_id,
+            "ally_agent_ids": ally_agent_ids,
+            "enemy_agent_ids": enemy_agent_ids,
             "scenario_id": self.simulation_config.scenario_id,
             "tick": state.tick,
+            "terminal_reason": state.terminal_reason,
+            "winner_team_id": state.winner_team_id,
+            "team0_alive": sum(1 for agent in team0_agents if agent.alive),
+            "team1_alive": sum(1 for agent in team1_agents if agent.alive),
+            "controlled_agent_alive": controlled_agent.alive,
+            "ally_alive_count": sum(
+                1 for agent_id in ally_agent_ids if state.agents[agent_id].alive
+            ),
+            "enemy_alive_count": sum(
+                1 for agent_id in enemy_agent_ids if state.agents[agent_id].alive
+            ),
         }
+
+    def _validate_scripted_policy_config(self) -> None:
+        agent_ids = {
+            agent.agent_id for team in self.simulation_config.teams for agent in team.agents
+        }
+        controlled_agent_id = self.env_config.controlled_agent_id
+        non_controlled_agent_ids = sorted(agent_ids - {controlled_agent_id})
+        if self.env_config.scripted_policy_by_agent_id is not None:
+            scripted_agent_ids = set(self.env_config.scripted_policy_by_agent_id)
+            non_controlled_agent_id_set = set(non_controlled_agent_ids)
+            extra_agent_ids = scripted_agent_ids - non_controlled_agent_id_set
+            missing_agent_ids = non_controlled_agent_id_set - scripted_agent_ids
+            if controlled_agent_id in scripted_agent_ids:
+                msg = "scripted_policy_by_agent_id must not include the controlled agent"
+                raise ValueError(msg)
+            if extra_agent_ids:
+                msg = (
+                    "scripted_policy_by_agent_id contains unknown agents: "
+                    f"{sorted(extra_agent_ids)}"
+                )
+                raise ValueError(msg)
+            if missing_agent_ids:
+                msg = (
+                    "scripted_policy_by_agent_id must assign every non-controlled agent; "
+                    f"missing: {sorted(missing_agent_ids)}"
+                )
+                raise ValueError(msg)
+            for policy_id in self.env_config.scripted_policy_by_agent_id.values():
+                _validate_policy_id(policy_id)
+            return
+
+        if self.env_config.teammate_policy_id is not None:
+            _validate_policy_id(self.env_config.teammate_policy_id)
+        for policy_id in self.env_config.opponent_policy_ids:
+            _validate_policy_id(policy_id)
 
     def _terminal_reason(
         self,
@@ -289,3 +374,7 @@ def _policy_id_for_index(policy_ids: list[str], index: int) -> str:
     if index < len(policy_ids):
         return policy_ids[index]
     return policy_ids[-1]
+
+
+def _validate_policy_id(policy_id: str) -> None:
+    create_policy(policy_id, seed=0)
