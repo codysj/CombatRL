@@ -7,15 +7,17 @@ schemas and replay-first debugging so later systems can be tested independently.
 
 ## Phase Status
 
-Phase P5 adds a Gymnasium-compatible single-agent RL environment wrapper on top
-of the replayable simulator. The project can load the default MVP config,
+Phase P6 adds the first Stable-Baselines3 PPO training baseline on top of the
+Gymnasium wrapper. The project can load the default MVP config,
 initialize a 2v2 match, run bot-vs-bot matches to elimination or timeout, save
 replay artifacts, validate them, render saved frames without recomputing
-simulation logic, and run headless random rollouts through `CombatRLGymEnv`.
+simulation logic, run headless random rollouts through `CombatRLGymEnv`, train
+a small PPO policy in a 1v1 scenario, save SB3 checkpoints, evaluate
+checkpoints, and generate sample replay artifacts from evaluated policies.
 
-PPO training, checkpoints, evaluation suites, behavior profiles, objective
-control, pathfinding, frontend, backend, and NLP systems are intentionally not
-implemented yet.
+Behavior profiles, objective control, pathfinding, frontend, backend, NLP,
+PettingZoo, self-play, opponent pools, and advanced MARL systems are
+intentionally not implemented yet.
 
 ## Simulator Model
 
@@ -85,6 +87,18 @@ Run the Gymnasium environment check:
 
 ```powershell
 uv run python scripts/check_env.py --episodes 5 --seed 42
+```
+
+Run a short PPO smoke train:
+
+```powershell
+uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml --smoke
+```
+
+Evaluate a checkpoint:
+
+```powershell
+uv run python scripts/evaluate_checkpoint.py <run_dir>/model_final.zip --env-config configs/env/gym_1v1_ranged_vs_random.yaml --episodes 5 --seed-start 1000
 ```
 
 Run and save a replay:
@@ -182,6 +196,54 @@ env.close()
 
 See `docs/rl_environment.md` and `docs/phase_p5.md` for the full contract.
 
+## PPO Training
+
+Default training config:
+
+```text
+configs/training/ppo_1v1_baseline.yaml
+```
+
+The first baseline uses Stable-Baselines3 PPO with `MlpPolicy`, `DummyVecEnv`,
+separate train/evaluation envs, unique vector-env seeds, CPU execution, SB3
+checkpoint callbacks, and local JSON/CSV artifacts. Training is headless and
+does not import renderer, browser, FastAPI, frontend, or Pygame code.
+
+Artifacts are saved under:
+
+```text
+artifacts/checkpoints/ppo_1v1_baseline/run_<timestamp>/
+```
+
+Important files:
+
+- `model_final.zip`: final SB3 checkpoint.
+- `best_model.zip`: best EvalCallback checkpoint when an evaluation fires.
+- `config.yaml`: resolved training config copy.
+- `model_metadata.json`: local checkpoint registry metadata.
+- `metrics.json`: training run summary.
+- `evaluation_metrics.json`: checkpoint evaluation metrics.
+- `eval_history.csv`: converted callback evaluation history when available.
+- `sample_replays/`: optional evaluated-policy replay artifacts.
+
+Run a longer local experiment:
+
+```powershell
+uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml
+```
+
+Generate a sample replay during evaluation:
+
+```powershell
+uv run python scripts/evaluate_checkpoint.py <checkpoint> --env-config configs/env/gym_1v1_ranged_vs_random.yaml --episodes 1 --save-replay
+uv run python scripts/validate_replay.py <sample_replay_path>
+```
+
+The smoke run only proves that PPO, checkpointing, evaluation, metadata, and
+replay capture work. The "beats random" learning criterion is a manual longer
+run target: increase timesteps gradually, inspect replays, then compare against
+the random baseline before trusting reward curves.
+
 ## Replays
 
 Replay files are written under:
@@ -230,6 +292,7 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
+uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml --smoke
 uv run python scripts/check_env.py --episodes 3 --seed 42
 uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --seed 42 --save-replay
 ```
@@ -256,6 +319,7 @@ with the same seed and confirm summary and replay content are deterministic,
 ignoring timestamps and output directory.
 
 See `docs/agents.md`, `docs/phase_p3.md`, `docs/phase_p4.md`,
-`docs/phase_p5.md`, and `docs/rl_environment.md` for details.
+`docs/phase_p5.md`, `docs/phase_p6.md`, `docs/rl_environment.md`, and
+`docs/rl_training.md` for details.
 
-Next phase: P6 PPO Training Baseline.
+Next phase: P7 2v2 Team Environment.

@@ -1,0 +1,21 @@
+config_schema_version: "1.0"
+scenario_id: mvp_1v1_ranged_elimination
+tick_rate_hz: 20
+max_ticks: 1200
+arena_width: 100.0
+arena_height: 60.0
+teams:
+  - team_id: 0
+    agents:
+      - agent_id: team0_ranged_dps_0
+        team_id: 0
+        role: ranged_dps
+        spawn_position: [30.0, 30.0]
+  - team_id: 1
+    agents:
+      - agent_id: team1_ranged_dps_0
+        team_id: 1
+        role: ranged_dps
+        spawn_position: [70.0, 30.0]
+obstacles: []
+win_condition: elimination

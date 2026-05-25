@@ -180,7 +180,7 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
             info["error"] = self._truncated_error
         return observation, float(reward_breakdown.total_reward), terminated, truncated, info
 
-    def render(self) -> NDArray[np.uint8] | None:
+    def render(self) -> Any:
         """Render support is intentionally minimal for P5."""
         if self.render_mode is None or self.render_mode == "human":
             return None

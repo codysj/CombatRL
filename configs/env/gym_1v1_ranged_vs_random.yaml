@@ -1,0 +1,14 @@
+env_id: CombatRL-1v1-Ranged-v0
+simulation_config_path: configs/env/mvp_1v1_ranged_elimination.yaml
+controlled_agent_id: team0_ranged_dps_0
+opponent_policy_ids:
+  - random
+teammate_policy_id: null
+reward_config: {}
+observation_schema_version: "1.0"
+action_schema_version: "1.0"
+capture_replays: false
+replay_sample_rate: 0.0
+decision_interval_ticks: 4
+terminate_on_controlled_death: false
+seed: 42
