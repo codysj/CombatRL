@@ -43,6 +43,19 @@ addopts = [
 target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
+exclude = [
+  ".git",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".pytest-tmp",
+  ".pytest-tmp-*",
+  ".ruff_cache",
+  ".uv-cache",
+  ".venv",
+  "artifacts",
+  "build",
+  "dist",
+]
 
 [tool.ruff.lint]
 select = [

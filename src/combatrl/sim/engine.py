@@ -102,7 +102,11 @@ class SimulationEngine:
             validate_match_state(state)
         return state
 
-    def step(self, actions: list[ActionCommand] | None = None) -> MatchState:
+    def step(
+        self,
+        actions: list[ActionCommand] | None = None,
+        action_metadata: dict[str, dict[str, object]] | None = None,
+    ) -> MatchState:
         """Advance one fixed timestep.
 
         Tick order is:
@@ -114,6 +118,7 @@ class SimulationEngine:
             return self._state
 
         action_by_agent_id = self._action_map(actions)
+        action_metadata = {} if action_metadata is None else action_metadata
         event_tick = self._state.tick + 1
         events: list[EventLog] = []
         cooldowns_before_attacks = {
@@ -121,12 +126,14 @@ class SimulationEngine:
         }
 
         for agent_id in sorted(self._state.agents):
+            event_payload: dict[str, object] = {"action_type": action_by_agent_id[agent_id].value}
+            event_payload.update(action_metadata.get(agent_id, {}))
             self._append_event(
                 events=events,
                 tick=event_tick,
                 event_type="agent_action_selected",
                 source_agent_id=agent_id,
-                payload={"action_type": action_by_agent_id[agent_id].value},
+                payload=event_payload,
             )
 
         self._resolve_movement(action_by_agent_id, events, event_tick)

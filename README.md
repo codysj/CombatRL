@@ -7,15 +7,14 @@ schemas and replay-first debugging so later systems can be tested independently.
 
 ## Phase Status
 
-Phase P3 adds replay writing, replay reading, replay validation, and a local
-optional Pygame debug renderer. The project can load the default MVP config,
-initialize a 2v2 match, run scripted discrete actions to elimination or timeout,
-save replay artifacts, validate them, and render saved frames without
-recomputing simulation logic.
+Phase P4 adds heuristic baseline agents on top of the replayable simulator. The
+project can load the default MVP config, initialize a 2v2 match, run bot-vs-bot
+matches to elimination or timeout, save replay artifacts, validate them, and
+render saved frames without recomputing simulation logic.
 
-RL training, formal heuristic agents, reward shaping, behavior profiles,
-objective control, pathfinding, frontend, backend, and NLP systems are
-intentionally not implemented yet.
+RL training, Gymnasium wrappers, reward shaping, behavior profiles, objective
+control, pathfinding, frontend, backend, and NLP systems are intentionally not
+implemented yet.
 
 ## Simulator Model
 
@@ -78,18 +77,20 @@ uv run ruff format --check .
 Run the headless match script:
 
 ```powershell
-uv run python scripts/run_match.py --seed 42
+uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --seed 42
 ```
 
 Run and save a replay:
 
 ```powershell
-uv run python scripts/run_match.py --seed 42 --save-replay
+uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --seed 42 --save-replay
 ```
 
 Expected summary fields include:
 
 - `scenario_id: mvp_2v2_elimination`
+- `team0_policy`
+- `team1_policy`
 - `agent_count: 4`
 - `final_tick`
 - `terminal: true`
@@ -98,6 +99,32 @@ Expected summary fields include:
 - `replay_path` when `--save-replay` is used
 - `replay_frame_count` when `--save-replay` is used
 - `replay_event_count` when `--save-replay` is used
+
+## Heuristic Baseline Agents
+
+Available policy IDs:
+
+- `random`: seeded uniform random simple actions.
+- `aggressive`: closes on the lowest-HP live enemy and attacks when ready.
+- `defensive`: retreats when low HP or pressured, regroups with allies, and
+  attacks only from safer positions.
+- `kiter`: tries to stay near attack range and backs up when enemies are too
+  close.
+- `protector`: stays near vulnerable allies and attacks enemies threatening
+  them.
+
+Run bot matchups:
+
+```powershell
+uv run python scripts/run_match.py --team0-policy kiter --team1-policy aggressive --seed 42 --save-replay
+uv run python scripts/run_match.py --team0-policy protector --team1-policy aggressive --seed 42 --save-replay
+```
+
+Optional role overrides:
+
+```powershell
+uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --team0-tank-policy protector --team0-ranged-policy kiter --seed 42
+```
 
 ## Replays
 
@@ -142,19 +169,35 @@ completion notes.
 Run:
 
 ```powershell
+uv sync
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
-uv run python scripts/run_match.py --seed 42
-uv run python scripts/run_match.py --seed 42 --save-replay
+uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --seed 42 --save-replay
 ```
 
-Run the script twice with the same seed and confirm the summary output is
-identical. Validate the printed replay path, render it locally, and confirm the
-arena, agents, HP bars, event feed, target lines, pause/play, and frame stepping
-work. To check validation manually, temporarily corrupt a replay frame tick or
-remove `metadata.json`, confirm `scripts/validate_replay.py` fails clearly, then
-revert the corruption.
+Validate the printed replay path:
 
-Next phase: P4 Heuristic Baseline Agents.
+```powershell
+uv run python scripts/validate_replay.py <replay_path>
+uv run python scripts/render_replay.py <replay_path>
+```
+
+Confirm visually that aggressive agents close distance and attack, defensive
+agents retreat when pressured or low HP, HP bars change from attacks, and the
+match terminates by elimination or timeout. Then run:
+
+```powershell
+uv run python scripts/run_match.py --team0-policy kiter --team1-policy aggressive --seed 42 --save-replay
+uv run python scripts/run_match.py --team0-policy protector --team1-policy aggressive --seed 42 --save-replay
+```
+
+Confirm visually that kiter agents try to maintain spacing and protector agents
+stay closer to allies than the aggressive baseline. Run the same command twice
+with the same seed and confirm summary and replay content are deterministic,
+ignoring timestamps and output directory.
+
+See `docs/agents.md`, `docs/phase_p3.md`, and `docs/phase_p4.md` for details.
+
+Next phase: P5 Gymnasium Environment Wrapper.
