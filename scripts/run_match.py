@@ -8,7 +8,9 @@ from pathlib import Path
 
 from combatrl.agents.base import AgentPolicy
 from combatrl.agents.behavior_summary import BehaviorSummary
+from combatrl.agents.profiled_bot import ProfiledBot
 from combatrl.agents.registry import create_policy
+from combatrl.profiles.loader import load_profile_by_id
 from combatrl.replay.validators import validate_replay
 from combatrl.replay.writer import ReplayWriter
 from combatrl.schemas.actions import ActionCommand
@@ -27,6 +29,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--team0-policy", default="aggressive")
     parser.add_argument("--team1-policy", default="aggressive")
+    parser.add_argument("--team0-profile", default=None)
+    parser.add_argument("--team1-profile", default=None)
     parser.add_argument("--team0-tank-policy", default=None)
     parser.add_argument("--team0-ranged-policy", default=None)
     parser.add_argument("--team1-tank-policy", default=None)
@@ -56,7 +60,11 @@ def build_policy_map(args: argparse.Namespace, state: MatchState) -> dict[str, A
         policy_id = (
             role_overrides.get((agent.team_id, agent.role)) or team_policy_ids[agent.team_id]
         )
-        policy_by_agent_id[agent_id] = create_policy(policy_id, seed=args.seed + agent.team_id)
+        policy = create_policy(policy_id, seed=args.seed + agent.team_id)
+        profile_id = args.team0_profile if agent.team_id == 0 else args.team1_profile
+        if profile_id is not None and not isinstance(policy, ProfiledBot):
+            policy = ProfiledBot(policy, load_profile_by_id(profile_id))
+        policy_by_agent_id[agent_id] = policy
     return policy_by_agent_id
 
 
@@ -83,7 +91,12 @@ def policy_actions(
         policy = policy_by_agent_id[agent_id]
         action = policy.select_action(state, agent_id)
         actions.append(action)
-        metadata[agent_id] = {"policy_id": policy.policy_id}
+        metadata[agent_id] = {
+            "policy_id": policy.policy_id,
+            "profile_id": getattr(policy, "profile_id", None),
+            "valid": True,
+            "fallback_used": False,
+        }
     return actions, metadata
 
 
@@ -149,6 +162,8 @@ def main() -> int:
                         "agent_count": len(engine.state.agents),
                         "team0_policy": args.team0_policy,
                         "team1_policy": args.team1_policy,
+                        "team0_profile": args.team0_profile,
+                        "team1_profile": args.team1_profile,
                     },
                 )
             ]

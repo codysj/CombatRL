@@ -1,0 +1,11 @@
+profile_schema_version: "1.0"
+profile_id: aggressive
+aggression: 0.90
+caution: 0.20
+cohesion: 0.35
+protectiveness: 0.25
+focus_fire: 0.60
+greed: 0.75
+spacing: 0.30
+objective_bias: 0.20
+notes: Presses toward enemies, attacks often, and chases weak targets.

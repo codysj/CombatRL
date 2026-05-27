@@ -1,0 +1,15 @@
+evaluation_id: ppo_2v2_baseline_eval
+scenario_config_path: configs/env/mvp_2v2_elimination.yaml
+env_config_path: configs/env/gym_2v2_controlled_ranged.yaml
+controlled_agent_id: team0_ranged_dps_0
+seed_start: 1000
+num_seeds: 30
+policy_type: ppo_checkpoint
+checkpoint_path: artifacts/checkpoints/ppo_2v2_baseline/run_<timestamp>/model_final.zip
+teammate_policy: protector
+opponents:
+  - aggressive
+  - random
+save_replays: false
+replay_sample_count: 3
+notes: Replace checkpoint_path before running. Script arguments are canonical for Phase P9.

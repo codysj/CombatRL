@@ -61,6 +61,11 @@ Required event types currently emitted:
 - `cooldown_started`
 - `match_ended`
 
+For profile-aware runs, `agent_action_selected` payloads may include
+`policy_id`, `profile_id`, `valid`, and `fallback_used`. `agent_moved` payloads
+include `action_type` when movement occurred. These are additive payload fields
+inside the existing replay schema version.
+
 Event IDs are deterministic:
 
 ```text

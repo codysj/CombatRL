@@ -30,6 +30,24 @@ scripted_policy_by_agent_id:
 When this mapping is present, every non-controlled agent must be assigned a
 known scripted policy and the controlled agent must be omitted.
 
+Optional profile assignment:
+
+```yaml
+teammate_profile_id: protective
+opponent_profile_ids:
+  - aggressive
+  - kiter
+profile_by_agent_id:
+  team0_tank_0: protective
+controlled_profile_id: defensive
+rerank_controlled_action_with_profile: false
+```
+
+Scripted teammate and opponent policies can be wrapped with profiles. The
+controlled RL action is not reranked unless
+`rerank_controlled_action_with_profile` is explicitly enabled. P8 does not
+change observation shape or train behavior-conditioned policies.
+
 ## API Contract
 
 ```python
@@ -122,10 +140,10 @@ uv run python scripts/evaluate_2v2_baseline.py --env-config configs/env/gym_2v2_
 
 ## Limitations
 
-P7 intentionally does not include behavior profiles, NLP, frontend/backend,
-PettingZoo, self-play, opponent pools, shared team policies, centralized
-critics, support/healer mechanics, objective-control mode, advanced metrics, or
-full simultaneous multi-agent learning.
+P8 includes lightweight behavior profiles for scripted policies. It does not
+include NLP, frontend/backend, PettingZoo, self-play, opponent pools, shared
+team policies, centralized critics, support/healer mechanics, objective-control
+mode, full evaluation framework metrics, or simultaneous multi-agent learning.
 
 ## Manual Verification
 

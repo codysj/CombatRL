@@ -121,6 +121,11 @@ class EnvironmentConfig(BaseModel):
     opponent_policy_ids: list[str]
     teammate_policy_id: str | None = None
     scripted_policy_by_agent_id: dict[str, str] | None = None
+    controlled_profile_id: str | None = None
+    teammate_profile_id: str | None = None
+    opponent_profile_ids: list[str] | None = None
+    profile_by_agent_id: dict[str, str] | None = None
+    rerank_controlled_action_with_profile: bool = False
     reward_config: dict[str, float] = Field(default_factory=dict)
     observation_schema_version: str
     action_schema_version: str

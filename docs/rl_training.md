@@ -82,6 +82,18 @@ Add `--save-replay` to write one evaluated-policy replay under
 `artifacts/replays` unless a training run provides a run-local replay output
 directory.
 
+Phase P9 also supports PPO checkpoint evaluation through the shared fixed-seed
+evaluation framework:
+
+```powershell
+uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type ppo_checkpoint --checkpoint <run_dir>/model_final.zip --seed-start 1000 --num-seeds 30
+```
+
+`evaluate_policy.py` writes aggregate JSON, per-match CSV/JSONL, Markdown, and
+optional replay samples under `artifacts/metrics/evaluations/`. PPO prediction
+is deterministic by default; pass `--stochastic` only for deliberate stochastic
+policy inspection.
+
 ## Manual Verification
 
 Run:
@@ -100,3 +112,5 @@ uv run python scripts/evaluate_checkpoint.py <smoke_run_dir>/model_final.zip --e
 Confirm finite `mean_reward`, `win_rate`, `timeout_rate`, and
 `mean_episode_length`. For real learning claims, increase timesteps gradually
 from 25k to 100k to 250k, compare against random, and inspect sample replays.
+Use the P9 evaluation script with at least 30 seeds before making policy-quality
+claims.

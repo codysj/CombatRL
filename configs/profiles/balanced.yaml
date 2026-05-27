@@ -1,0 +1,11 @@
+profile_schema_version: "1.0"
+profile_id: balanced
+aggression: 0.50
+caution: 0.50
+cohesion: 0.50
+protectiveness: 0.50
+focus_fire: 0.50
+greed: 0.40
+spacing: 0.50
+objective_bias: 0.20
+notes: Balanced tactical profile for baseline comparisons.

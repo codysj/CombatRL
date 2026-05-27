@@ -9,11 +9,14 @@ from gymnasium import spaces
 from numpy.typing import NDArray
 
 from combatrl.agents.base import AgentPolicy
+from combatrl.agents.profiled_bot import ProfiledBot
 from combatrl.agents.registry import create_policy
 from combatrl.core.constants import ACTION_SCHEMA_VERSION, OBSERVATION_SCHEMA_VERSION
 from combatrl.envs.action_codec import ActionCodec
 from combatrl.envs.observation_builder import OBS_DIM, ObservationBuilder, observation_to_numpy
 from combatrl.envs.reward_builder import RewardBuilder
+from combatrl.profiles.loader import load_profile_by_id
+from combatrl.profiles.modulation import get_candidate_actions, rerank_actions
 from combatrl.schemas.actions import ActionCommand
 from combatrl.schemas.configs import (
     EnvironmentConfig,
@@ -128,6 +131,26 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
             else self.action_codec.decode(action_id, self.env_config.controlled_agent_id)
         )
         scripted_actions, action_metadata = self._scripted_actions(previous_state)
+        controlled_profile_id = self.env_config.controlled_profile_id
+        if (
+            controlled_profile_id is not None
+            and self.env_config.rerank_controlled_action_with_profile
+            and not invalid_action
+        ):
+            profile = load_profile_by_id(controlled_profile_id)
+            candidates = get_candidate_actions(previous_state, self.env_config.controlled_agent_id)
+            base_scores = np.zeros(len(candidates), dtype=np.float64)
+            for index, candidate in enumerate(candidates):
+                if candidate.action_type == controlled_action.action_type:
+                    base_scores[index] = 0.05
+                    break
+            controlled_action = rerank_actions(
+                candidates,
+                base_scores,
+                previous_state,
+                self.env_config.controlled_agent_id,
+                profile,
+            )
         step_events: list[EventLog] = []
 
         try:
@@ -137,7 +160,12 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
                 self._engine.step(
                     [controlled_action, *scripted_actions],
                     action_metadata={
-                        self.env_config.controlled_agent_id: {"policy_id": "rl"},
+                        self.env_config.controlled_agent_id: {
+                            "policy_id": "rl",
+                            "profile_id": controlled_profile_id,
+                            "valid": not invalid_action,
+                            "fallback_used": invalid_action,
+                        },
                         **action_metadata,
                     },
                 )
@@ -228,6 +256,11 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
             for index, agent_id in enumerate(sorted(opponents + teammates)):
                 policy_id = scripted_policy_ids[agent_id]
                 policy = create_policy(policy_id, seed=seed + 100 + index)
+                policy = self._wrap_profiled_policy(
+                    policy=policy,
+                    agent_id=agent_id,
+                    profile_id=self._profile_id_for_agent(agent_id, index, teammates, opponents),
+                )
                 policy.reset(seed + 100 + index)
                 policy_by_agent_id[agent_id] = policy
             return policy_by_agent_id
@@ -235,11 +268,21 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         for index, agent_id in enumerate(teammates):
             policy_id = self.env_config.teammate_policy_id or "random"
             policy = create_policy(policy_id, seed=seed + 100 + index)
+            policy = self._wrap_profiled_policy(
+                policy=policy,
+                agent_id=agent_id,
+                profile_id=self._profile_id_for_agent(agent_id, index, teammates, opponents),
+            )
             policy.reset(seed + 100 + index)
             policy_by_agent_id[agent_id] = policy
         for index, agent_id in enumerate(opponents):
             policy_id = _policy_id_for_index(self.env_config.opponent_policy_ids, index)
             policy = create_policy(policy_id, seed=seed + 200 + index)
+            policy = self._wrap_profiled_policy(
+                policy=policy,
+                agent_id=agent_id,
+                profile_id=self._profile_id_for_agent(agent_id, index, teammates, opponents),
+            )
             policy.reset(seed + 200 + index)
             policy_by_agent_id[agent_id] = policy
         return policy_by_agent_id
@@ -253,7 +296,12 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         for agent_id in sorted(self._policy_by_agent_id):
             policy = self._policy_by_agent_id[agent_id]
             actions.append(policy.select_action(state, agent_id))
-            metadata[agent_id] = {"policy_id": policy.policy_id}
+            metadata[agent_id] = {
+                "policy_id": policy.policy_id,
+                "profile_id": getattr(policy, "profile_id", None),
+                "valid": True,
+                "fallback_used": False,
+            }
         return actions, metadata
 
     def _build_numpy_observation(self, state: MatchState) -> NDArray[np.float32]:
@@ -328,12 +376,61 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
                 raise ValueError(msg)
             for policy_id in self.env_config.scripted_policy_by_agent_id.values():
                 _validate_policy_id(policy_id)
+            self._validate_profile_config(agent_ids)
             return
 
         if self.env_config.teammate_policy_id is not None:
             _validate_policy_id(self.env_config.teammate_policy_id)
         for policy_id in self.env_config.opponent_policy_ids:
             _validate_policy_id(policy_id)
+        self._validate_profile_config(agent_ids)
+
+    def _validate_profile_config(self, agent_ids: set[str]) -> None:
+        profile_ids: list[str] = []
+        if self.env_config.controlled_profile_id is not None:
+            profile_ids.append(self.env_config.controlled_profile_id)
+        if self.env_config.teammate_profile_id is not None:
+            profile_ids.append(self.env_config.teammate_profile_id)
+        if self.env_config.opponent_profile_ids is not None:
+            profile_ids.extend(self.env_config.opponent_profile_ids)
+        if self.env_config.profile_by_agent_id is not None:
+            unknown_agent_ids = set(self.env_config.profile_by_agent_id) - agent_ids
+            if unknown_agent_ids:
+                msg = f"profile_by_agent_id contains unknown agents: {sorted(unknown_agent_ids)}"
+                raise ValueError(msg)
+            profile_ids.extend(self.env_config.profile_by_agent_id.values())
+        for profile_id in profile_ids:
+            load_profile_by_id(profile_id)
+
+    def _profile_id_for_agent(
+        self,
+        agent_id: str,
+        fallback_index: int,
+        teammates: list[str],
+        opponents: list[str],
+    ) -> str | None:
+        if self.env_config.profile_by_agent_id is not None:
+            explicit_profile_id = self.env_config.profile_by_agent_id.get(agent_id)
+            if explicit_profile_id is not None:
+                return explicit_profile_id
+        if agent_id in teammates:
+            return self.env_config.teammate_profile_id
+        if agent_id in opponents and self.env_config.opponent_profile_ids is not None:
+            opponent_index = opponents.index(agent_id) if agent_id in opponents else fallback_index
+            return _policy_id_for_index(self.env_config.opponent_profile_ids, opponent_index)
+        return None
+
+    @staticmethod
+    def _wrap_profiled_policy(
+        *,
+        policy: AgentPolicy,
+        agent_id: str,
+        profile_id: str | None,
+    ) -> AgentPolicy:
+        _ = agent_id
+        if profile_id is None or isinstance(policy, ProfiledBot):
+            return policy
+        return ProfiledBot(base_policy=policy, profile=load_profile_by_id(profile_id))
 
     def _terminal_reason(
         self,

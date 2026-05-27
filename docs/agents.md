@@ -27,6 +27,10 @@ select_action(state: MatchState, agent_id: str) -> ActionCommand
   range, and otherwise strafes deterministically.
 - `protector`: identifies a vulnerable ally, stays near that ally, and attacks
   enemies threatening the ally.
+- `profiled:<profile>`: wraps the aggressive base policy with a manual behavior
+  profile.
+- `profiled:<base_policy>:<profile>`: wraps a selected baseline with a manual
+  behavior profile, for example `profiled:kiter:protective`.
 
 ## Running Matches
 
@@ -34,12 +38,14 @@ select_action(state: MatchState, agent_id: str) -> ActionCommand
 uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --seed 42 --save-replay
 uv run python scripts/run_match.py --team0-policy kiter --team1-policy aggressive --seed 42 --save-replay
 uv run python scripts/run_match.py --team0-policy protector --team1-policy aggressive --seed 42 --save-replay
+uv run python scripts/run_match.py --team0-policy profiled:aggressive --team1-policy aggressive --seed 42 --save-replay
 ```
 
 Role overrides are optional:
 
 ```powershell
 uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --team0-tank-policy protector --team0-ranged-policy kiter --seed 42
+uv run python scripts/run_match.py --team0-policy aggressive --team0-profile protective --team1-policy aggressive --seed 42
 ```
 
 Saved bot replays remain P3 replay files and validate with:
@@ -58,7 +64,7 @@ uv run python scripts/render_replay.py <replay_path>
 
 - The action space is still `NO_OP`, movement directions, and
   `ATTACK_NEAREST`; bots cannot issue explicit target IDs.
-- Bot behavior is intentionally simple and is not a behavior profile system.
-- No Gymnasium wrapper, observation vector, reward builder, training loop,
-  support/healer behavior, objective-control mode, or evaluation dashboard is
-  included in P4.
+- Profiled bots still use the MVP action space; no explicit target-ID actions
+  are added in P8.
+- No support/healer behavior, objective-control mode, NLP command parser,
+  frontend/backend, or full evaluation dashboard is included in P8.

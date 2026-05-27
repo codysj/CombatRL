@@ -1,0 +1,19 @@
+evaluation_id: mvp_2v2_profiles
+scenario_config_path: configs/env/mvp_2v2_elimination.yaml
+env_config_path: configs/env/gym_2v2_controlled_ranged.yaml
+controlled_agent_id: team0_ranged_dps_0
+seed_start: 100
+num_seeds: 30
+base_policy: aggressive
+opponents:
+  - aggressive
+  - random
+profiles:
+  - aggressive
+  - defensive
+  - protective
+  - kiter
+  - balanced
+save_replays: true
+replay_sample_count: 3
+notes: Script arguments are canonical for Phase P9; this file documents the MVP profile suite.

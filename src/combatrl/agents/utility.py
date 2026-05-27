@@ -6,10 +6,37 @@ from combatrl.schemas.actions import ActionCommand, ActionType
 from combatrl.schemas.agent_state import AgentState
 from combatrl.schemas.match_state import MatchState
 
+MOVEMENT_ACTIONS: tuple[ActionType, ...] = (
+    ActionType.MOVE_UP,
+    ActionType.MOVE_DOWN,
+    ActionType.MOVE_LEFT,
+    ActionType.MOVE_RIGHT,
+    ActionType.MOVE_UP_LEFT,
+    ActionType.MOVE_UP_RIGHT,
+    ActionType.MOVE_DOWN_LEFT,
+    ActionType.MOVE_DOWN_RIGHT,
+)
+
 
 def no_op(agent_id: str) -> ActionCommand:
     """Build a no-op command for an agent."""
     return ActionCommand(agent_id=agent_id, action_type=ActionType.NO_OP)
+
+
+def get_candidate_actions(state: MatchState, agent_id: str) -> list[ActionCommand]:
+    """Return the small MVP candidate action set for profile reranking."""
+    agent = state.agents.get(agent_id)
+    if agent is None or not agent.alive:
+        return [no_op(agent_id)]
+
+    candidates = [ActionCommand(agent_id=agent_id, action_type=ActionType.NO_OP)]
+    candidates.extend(
+        ActionCommand(agent_id=agent_id, action_type=action_type)
+        for action_type in MOVEMENT_ACTIONS
+    )
+    if get_live_enemies(state, agent_id):
+        candidates.append(ActionCommand(agent_id=agent_id, action_type=ActionType.ATTACK_NEAREST))
+    return candidates
 
 
 def get_live_agents(state: MatchState) -> list[AgentState]:

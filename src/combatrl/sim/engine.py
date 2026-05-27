@@ -227,6 +227,7 @@ class SimulationEngine:
                         "from_position": previous_position,
                         "to_position": agent.position,
                         "velocity": agent.velocity,
+                        "action_type": action_by_agent_id[agent_id].value,
                     },
                 )
 

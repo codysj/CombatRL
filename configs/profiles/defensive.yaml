@@ -1,0 +1,11 @@
+profile_schema_version: "1.0"
+profile_id: defensive
+aggression: 0.25
+caution: 0.85
+cohesion: 0.60
+protectiveness: 0.55
+focus_fire: 0.45
+greed: 0.20
+spacing: 0.75
+objective_bias: 0.20
+notes: Prioritizes survival, spacing, and regrouping under pressure.

@@ -1,0 +1,11 @@
+profile_schema_version: "1.0"
+profile_id: protective
+aggression: 0.45
+caution: 0.60
+cohesion: 0.85
+protectiveness: 0.90
+focus_fire: 0.70
+greed: 0.25
+spacing: 0.55
+objective_bias: 0.20
+notes: Stays near allies and peels threats away from vulnerable teammates.

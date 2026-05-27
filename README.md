@@ -7,17 +7,19 @@ schemas and replay-first debugging so later systems can be tested independently.
 
 ## Phase Status
 
-Phase P7 upgrades the Gymnasium wrapper into a stable 2v2 team-aware
-environment. The project can load the default MVP config, initialize a 2v2
+Phase P9 adds a fixed-seed evaluation framework on top of the stable 2v2
+team-aware environment and behavior-profile system. The project can load the default MVP config, initialize a 2v2
 match, run bot-vs-bot matches to elimination or timeout, save replay artifacts,
 validate them, render saved frames without recomputing simulation logic, run
 headless 2v2 rollouts through `CombatRLGymEnv`, train PPO smoke baselines for
 1v1 or 2v2 configs, save SB3 checkpoints, evaluate checkpoints, and generate
-sample replay artifacts from evaluated policies.
+sample replay artifacts from evaluated policies. It can also load bounded
+numeric behavior profiles and compare heuristic, profiled, random, and PPO
+policies across fixed seeds with JSON, CSV, JSONL, Markdown, and sample replay
+artifacts.
 
-Behavior profiles, objective control, pathfinding, frontend, backend, NLP,
-PettingZoo, self-play, opponent pools, and advanced MARL systems are
-intentionally not implemented yet.
+Objective control, pathfinding, frontend, backend, NLP, PettingZoo, self-play,
+opponent pools, and advanced MARL systems are intentionally not implemented yet.
 
 ## Simulator Model
 
@@ -134,12 +136,17 @@ Available policy IDs:
   close.
 - `protector`: stays near vulnerable allies and attacks enemies threatening
   them.
+- `profiled:<profile>`: wraps the aggressive base policy with a behavior
+  profile.
+- `profiled:<base_policy>:<profile>`: wraps a selected base policy with a
+  behavior profile.
 
 Run bot matchups:
 
 ```powershell
 uv run python scripts/run_match.py --team0-policy kiter --team1-policy aggressive --seed 42 --save-replay
 uv run python scripts/run_match.py --team0-policy protector --team1-policy aggressive --seed 42 --save-replay
+uv run python scripts/run_match.py --team0-policy profiled:defensive --team1-policy aggressive --seed 42 --save-replay
 ```
 
 Optional role overrides:
@@ -147,6 +154,71 @@ Optional role overrides:
 ```powershell
 uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --team0-tank-policy protector --team0-ranged-policy kiter --seed 42
 ```
+
+## Behavior Profiles
+
+Manual profile presets live under `configs/profiles/`: `balanced`,
+`aggressive`, `defensive`, `kiter`, and `protective`. A profile is a numeric
+control object with bounded axes for aggression, caution, cohesion,
+protectiveness, focus fire, greed, spacing, and reserved objective bias.
+Profiles rerank existing valid action candidates at inference time; they do not
+retrain policies, change simulator rules, mutate simulator state, add NLP, or
+change observation shape.
+
+List profiles:
+
+```powershell
+uv run python -c "from combatrl.profiles.loader import list_profiles; print(list_profiles())"
+```
+
+Run a comparison:
+
+```powershell
+uv run python scripts/compare_profiles.py --profiles aggressive defensive protective kiter balanced --base-policy aggressive --num-seeds 10 --save-replays
+```
+
+The comparison now uses the P9 evaluation framework. It writes per-profile P9
+evaluation artifacts, JSON and CSV profile summaries, a Markdown comparison
+report, and one sample replay per profile when `--save-replays` is enabled.
+Expected coarse signals are higher attack rate for aggressive, higher retreat
+rate for defensive, lower ally distance for protective, and greater enemy
+spacing for kiter.
+
+## Evaluation Framework
+
+Evaluation artifacts are local files under:
+
+```text
+artifacts/metrics/evaluations/<evaluation_id>/
+```
+
+Each run writes `evaluation_result.json`, `per_match_metrics.csv`,
+`per_match_metrics.jsonl`, `evaluation_report.md`, and optional replay samples.
+Metrics are computed from replay frames/events where possible and include match
+outcome, damage, survival, spacing, attack/retreat/no-op rates, ally distance,
+cohesion, and best-effort teamwork metrics.
+
+Run a tiny heuristic evaluation:
+
+```powershell
+uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type heuristic --policy-id aggressive --seed-start 100 --num-seeds 3 --save-replays --replay-sample-count 1
+```
+
+Run a profile evaluation:
+
+```powershell
+uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type profiled --base-policy aggressive --profile defensive --seed-start 100 --num-seeds 30 --save-replays
+```
+
+Run a PPO checkpoint evaluation:
+
+```powershell
+uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type ppo_checkpoint --checkpoint <checkpoint_path> --seed-start 1000 --num-seeds 30
+```
+
+Do not make strong claims from fewer than 20 matches. Prefer at least 30 seeds
+for MVP comparisons, and inspect representative replay samples before drawing
+conclusions.
 
 ## Gymnasium Environment
 
@@ -306,6 +378,7 @@ uv run python scripts/train_ppo.py --config configs/training/ppo_2v2_baseline.ya
 uv run python scripts/check_env.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 3 --seed 42
 uv run python scripts/run_2v2_env_episode.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --seed 42 --policy random --save-replay
 uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --seed 42 --save-replay
+uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type heuristic --policy-id aggressive --seed-start 100 --num-seeds 3 --save-replays --replay-sample-count 1
 ```
 
 Validate the printed replay path:
@@ -331,7 +404,8 @@ ignoring timestamps and output directory.
 
 See `docs/agents.md`, `docs/phase_p3.md`, `docs/phase_p4.md`,
 `docs/phase_p5.md`, `docs/phase_p6.md`, `docs/rl_environment.md`, and
-`docs/phase_p7.md`, `docs/rl_environment.md`, and `docs/rl_training.md` for
-details.
+`docs/phase_p7.md`, `docs/phase_p8.md`, `docs/profiles.md`,
+`docs/phase_p9.md`, `docs/evaluation.md`, `docs/rl_environment.md`, and
+`docs/rl_training.md` for details.
 
-Next phase: P8 Behavior Profiles.
+Next phase: P10 NLP Command Parser.
