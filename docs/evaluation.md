@@ -74,6 +74,17 @@ Profile evaluation:
 uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type profiled --base-policy aggressive --profile aggressive --seed-start 100 --num-seeds 30 --save-replays
 ```
 
+Command-profile comparison:
+
+```powershell
+uv run python scripts/compare_command_profiles.py --commands "play aggressively" "protect ally" "kite backward" --num-seeds 3 --save-replays
+```
+
+Command comparisons parse each command into a validated behavior profile, save
+the parsed profile artifacts, run the existing P9 benchmark/report utilities,
+and write JSON, CSV, Markdown, and optional replay samples under
+`artifacts/metrics/command_profiles/`.
+
 PPO checkpoint evaluation:
 
 ```powershell

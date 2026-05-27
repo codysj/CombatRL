@@ -25,7 +25,7 @@ from combatrl.evaluation.reports import (
     write_per_match_csv,
     write_per_match_jsonl,
 )
-from combatrl.profiles.loader import load_profile_by_id
+from combatrl.profiles.loader import load_profile, load_profile_by_id
 from combatrl.replay.validators import validate_replay
 from combatrl.replay.writer import ReplayWriter
 from combatrl.schemas.actions import ActionCommand
@@ -349,7 +349,12 @@ def _controlled_scripted_policy(policy_spec: PolicySpec, seed: int) -> AgentPoli
         if profile_id is None:
             msg = "profiled policies require profile_id"
             raise ValueError(msg)
-        return ProfiledBot(create_policy(base_policy_id, seed=seed), load_profile_by_id(profile_id))
+        profile = (
+            load_profile(policy_spec.profile_path)
+            if policy_spec.profile_path is not None
+            else load_profile_by_id(profile_id)
+        )
+        return ProfiledBot(create_policy(base_policy_id, seed=seed), profile)
     return create_policy(policy_spec.policy_id, seed=seed)
 
 

@@ -7,7 +7,7 @@ schemas and replay-first debugging so later systems can be tested independently.
 
 ## Phase Status
 
-Phase P9 adds a fixed-seed evaluation framework on top of the stable 2v2
+Phase P10 adds natural-language-to-profile parsing on top of the stable 2v2
 team-aware environment and behavior-profile system. The project can load the default MVP config, initialize a 2v2
 match, run bot-vs-bot matches to elimination or timeout, save replay artifacts,
 validate them, render saved frames without recomputing simulation logic, run
@@ -16,9 +16,10 @@ headless 2v2 rollouts through `CombatRLGymEnv`, train PPO smoke baselines for
 sample replay artifacts from evaluated policies. It can also load bounded
 numeric behavior profiles and compare heuristic, profiled, random, and PPO
 policies across fixed seeds with JSON, CSV, JSONL, Markdown, and sample replay
-artifacts.
+artifacts. Natural-language commands can now be translated into validated
+`BehaviorProfile` objects and compared through the existing evaluation stack.
 
-Objective control, pathfinding, frontend, backend, NLP, PettingZoo, self-play,
+Objective control, pathfinding, frontend, backend, PettingZoo, self-play,
 opponent pools, and advanced MARL systems are intentionally not implemented yet.
 
 ## Simulator Model
@@ -162,8 +163,8 @@ Manual profile presets live under `configs/profiles/`: `balanced`,
 control object with bounded axes for aggression, caution, cohesion,
 protectiveness, focus fire, greed, spacing, and reserved objective bias.
 Profiles rerank existing valid action candidates at inference time; they do not
-retrain policies, change simulator rules, mutate simulator state, add NLP, or
-change observation shape.
+retrain policies, change simulator rules, mutate simulator state, output raw
+actions, or change observation shape.
 
 List profiles:
 
@@ -183,6 +184,40 @@ report, and one sample replay per profile when `--save-replays` is enabled.
 Expected coarse signals are higher attack rate for aggressive, higher retreat
 rate for defensive, lower ally distance for protective, and greater enemy
 spacing for kiter.
+
+## NLP Command Parser
+
+P10 maps natural language to the existing `BehaviorProfile` schema. The NLP
+layer is a translator, not a controller: it never calls `env.step`, emits raw
+action IDs, mutates simulator state, executes code, or invents unsupported
+profile fields.
+
+Parse commands:
+
+```powershell
+uv run python scripts/parse_command.py "play aggressively"
+uv run python scripts/parse_command.py "protect ally and stay together"
+uv run python scripts/parse_command.py "kite backward and avoid close combat"
+uv run python scripts/parse_command.py "teleport behind them and buy items"
+```
+
+Save a parsed profile:
+
+```powershell
+uv run python scripts/parse_command.py "protect ally" --output-profile artifacts/profiles/protect_ally.yaml
+```
+
+Run command-driven comparisons:
+
+```powershell
+uv run python scripts/compare_command_profiles.py --commands "play aggressively" "protect ally" "kite backward" --num-seeds 3 --save-replays
+```
+
+The parser has deterministic rule mode plus an optional structured-output LLM
+interface that accepts an injected callable. Tests use fake callables only; no
+network access or API key is required. Unsupported requests such as teleporting,
+items, fog, wards, ultimates, healing, revives, summons, building, or unsupported
+spells are reported explicitly in `unsupported_requests`.
 
 ## Evaluation Framework
 
@@ -373,6 +408,10 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
+uv run python scripts/parse_command.py "play aggressively"
+uv run python scripts/parse_command.py "protect ally"
+uv run python scripts/parse_command.py "teleport and buy items"
+uv run python scripts/compare_command_profiles.py --commands "play aggressively" "kite backward" --num-seeds 2 --save-replays
 uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml --smoke
 uv run python scripts/train_ppo.py --config configs/training/ppo_2v2_baseline.yaml --smoke
 uv run python scripts/check_env.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 3 --seed 42
@@ -405,7 +444,8 @@ ignoring timestamps and output directory.
 See `docs/agents.md`, `docs/phase_p3.md`, `docs/phase_p4.md`,
 `docs/phase_p5.md`, `docs/phase_p6.md`, `docs/rl_environment.md`, and
 `docs/phase_p7.md`, `docs/phase_p8.md`, `docs/profiles.md`,
-`docs/phase_p9.md`, `docs/evaluation.md`, `docs/rl_environment.md`, and
-`docs/rl_training.md` for details.
+`docs/phase_p9.md`, `docs/evaluation.md`, `docs/nlp.md`,
+`docs/phase_p10.md`, `docs/rl_environment.md`, and `docs/rl_training.md` for
+details.
 
-Next phase: P10 NLP Command Parser.
+Next phase: P11 Backend and Frontend Dashboard.

@@ -20,6 +20,7 @@ class PolicySpec(BaseModel):
     checkpoint_path: str | None = None
     base_policy_id: str | None = None
     profile_id: str | None = None
+    profile_path: str | None = None
     controlled_agent_id: str | None = None
     notes: str | None = None
 

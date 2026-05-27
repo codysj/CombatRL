@@ -1,12 +1,27 @@
 # CombatRL Behavior Profiles
 
 Behavior profiles are manual, bounded numeric control objects that modulate
-agent decisions at inference time. They come before NLP so behavior control can
-be tested independently from language parsing.
+agent decisions at inference time. They remain the bounded control surface used
+by P10 natural-language parsing.
 
 Profiles do not retrain policies, change observations, mutate simulator state,
 or override simulator rules. They only rerank valid MVP `ActionCommand`
 candidates before the simulator applies actions.
+
+## NLP-Generated Profiles
+
+Phase P10 can generate temporary validated profiles from natural-language
+commands. The NLP parser only fills the existing `BehaviorProfile` schema; it
+does not add fields or create actions. Parsed profiles use deterministic IDs
+like `generated_from_command_<hash>` and can be saved as YAML:
+
+```powershell
+uv run python scripts/parse_command.py "protect ally" --output-profile artifacts/profiles/protect_ally.yaml
+```
+
+Unsupported mechanics such as teleporting, items, fog, wards, ultimates,
+healing, revives, summons, building, and unsupported spells are reported in
+`unsupported_requests` instead of being invented as profile fields.
 
 ## Schema
 
@@ -105,4 +120,4 @@ P9 adds fixed-seed local evaluation, but profile metrics are still replay/event
 derived and some teamwork metrics remain best-effort until richer target intent
 payloads exist.
 
-Recommended next phase: Phase P10 NLP Command Parser.
+Recommended next phase: Phase P11 Backend and Frontend Dashboard.
