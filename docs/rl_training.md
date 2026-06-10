@@ -71,6 +71,38 @@ Override timesteps or seed:
 uv run python scripts/train_ppo.py --smoke --total-timesteps 2048 --seed 7
 ```
 
+## Curriculum Training (PPO Trainability Pass)
+
+The flat 2v2 task is too sparse for PPO from scratch: spawns are ~70 units
+apart with attack range 18, so exploration never finds combat and passivity is
+a stable local optimum. The supported recipe is a staged curriculum with light
+opt-in reward shaping, warm-starting each stage from the previous checkpoint:
+
+```powershell
+uv run python scripts/train_ppo.py --config configs/training/ppo_curriculum_s1_close1v1.yaml
+uv run python scripts/train_ppo.py --config configs/training/ppo_curriculum_s2_1v1_random.yaml --init-checkpoint <s1_run_dir>/model_final.zip
+uv run python scripts/train_ppo.py --config configs/training/ppo_curriculum_s3_1v1_aggressive.yaml --init-checkpoint <s2_run_dir>/model_final.zip
+uv run python scripts/train_ppo.py --config configs/training/ppo_curriculum_s4_close2v2.yaml --init-checkpoint <s3_run_dir>/model_final.zip
+uv run python scripts/train_ppo.py --config configs/training/ppo_curriculum_s5_2v2.yaml --init-checkpoint <s4_run_dir>/model_final.zip
+```
+
+Stages: close 1v1 vs random → full 1v1 vs random → 1v1 vs aggressive → close
+2v2 → canonical 2v2. The `*_shaped` env configs enable four reward components
+that default to weight 0.0 everywhere else: `approach_reward`,
+`attack_range_bonus`, `attack_landed_bonus`, and `edge_penalty`. Final
+evaluation always uses the canonical unshaped scenario
+(`configs/env/gym_2v2_controlled_ranged.yaml`).
+
+Gate each stage on its `evaluation_metrics.json` before continuing: expect
+nonzero `mean_damage_dealt`, low `timeout_rate`, and a sane `action_histogram`
+(the histogram makes degenerate policies such as 100% `MOVE_UP` or no-op spam
+obvious). Replay-derived P9 metrics additionally report per-action
+`action_rate_*` and `edge_occupancy_rate`.
+
+Results of the 2026-06-10 trainability pass (96.7% win rate over seeds
+1000–1029 on the canonical 2v2 scenario versus 0% for random) are documented
+in `artifacts/reports/ppo_trainability_pass_20260610.md`.
+
 ## Evaluating
 
 ```powershell

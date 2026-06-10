@@ -1,8 +1,21 @@
 """Reward calculation for the Gymnasium wrapper."""
 
+from combatrl.core.geometry import distance
 from combatrl.schemas.match_state import MatchState
 from combatrl.schemas.replay import EventLog
 from combatrl.schemas.rewards import REQUIRED_REWARD_COMPONENTS, RewardBreakdown
+
+# Optional trainability-shaping components. Raw values are computed every step,
+# but their default weight is 0.0 so the canonical sparse reward is unchanged
+# unless an env config opts in via reward_config.
+SHAPING_REWARD_COMPONENTS: tuple[str, ...] = (
+    "approach_reward",
+    "attack_range_bonus",
+    "attack_landed_bonus",
+    "edge_penalty",
+)
+
+EDGE_MARGIN = 5.0
 
 DEFAULT_REWARD_CONFIG: dict[str, float] = {
     "win_bonus": 1.0,
@@ -13,6 +26,10 @@ DEFAULT_REWARD_CONFIG: dict[str, float] = {
     "ally_death_penalty": 1.0,
     "invalid_action_penalty": 1.0,
     "time_penalty": 1.0,
+    "approach_reward": 0.0,
+    "attack_range_bonus": 0.0,
+    "attack_landed_bonus": 0.0,
+    "edge_penalty": 0.0,
 }
 
 
@@ -62,10 +79,29 @@ class RewardBuilder:
         )
         components["invalid_action_penalty"] = -0.02 if invalid_action else 0.0
         components["time_penalty"] = -0.001
+        components["approach_reward"] = _approach_delta(
+            previous_state,
+            current_state,
+            controlled_agent_id,
+            controlled_team_id,
+        )
+        components["attack_range_bonus"] = _attack_range_bonus(
+            current_state,
+            controlled_agent_id,
+            controlled_team_id,
+        )
+        components["attack_landed_bonus"] = float(
+            sum(
+                1
+                for event in events
+                if event.event_type == "agent_attacked"
+                and event.source_agent_id == controlled_agent_id
+            )
+        )
+        components["edge_penalty"] = _edge_penalty(current_state, controlled_agent_id)
 
         scaled = {
-            key: components[key] * self.reward_config.get(key, 1.0)
-            for key in REQUIRED_REWARD_COMPONENTS
+            key: value * self.reward_config.get(key, 1.0) for key, value in components.items()
         }
         total_reward = sum(scaled.values())
         return RewardBreakdown(
@@ -140,6 +176,67 @@ def _damage_taken_penalty(
     previous_agent = previous_state.agents[controlled_agent_id]
     current_agent = current_state.agents[controlled_agent_id]
     return -max(0.0, previous_agent.hp - current_agent.hp) / 150.0
+
+
+def _approach_delta(
+    previous_state: MatchState,
+    current_state: MatchState,
+    controlled_agent_id: str,
+    controlled_team_id: int,
+) -> float:
+    """Distance closed toward the nearest enemy alive in both states, in arena units."""
+    current_agent = current_state.agents[controlled_agent_id]
+    previous_agent = previous_state.agents[controlled_agent_id]
+    if not current_agent.alive or not previous_agent.alive:
+        return 0.0
+    shared_enemy_ids = [
+        agent_id
+        for agent_id, agent in previous_state.agents.items()
+        if agent.team_id != controlled_team_id
+        and agent.alive
+        and current_state.agents[agent_id].alive
+    ]
+    if not shared_enemy_ids:
+        return 0.0
+    previous_distance = min(
+        distance(previous_agent.position, previous_state.agents[agent_id].position)
+        for agent_id in shared_enemy_ids
+    )
+    current_distance = min(
+        distance(current_agent.position, current_state.agents[agent_id].position)
+        for agent_id in shared_enemy_ids
+    )
+    return previous_distance - current_distance
+
+
+def _attack_range_bonus(
+    state: MatchState,
+    controlled_agent_id: str,
+    controlled_team_id: int,
+) -> float:
+    agent = state.agents[controlled_agent_id]
+    if not agent.alive:
+        return 0.0
+    in_range = any(
+        enemy.alive
+        and enemy.team_id != controlled_team_id
+        and distance(agent.position, enemy.position) <= agent.attack_range
+        for enemy in state.agents.values()
+    )
+    return 1.0 if in_range else 0.0
+
+
+def _edge_penalty(state: MatchState, controlled_agent_id: str) -> float:
+    agent = state.agents[controlled_agent_id]
+    if not agent.alive:
+        return 0.0
+    wall_distance = min(
+        agent.position[0],
+        state.arena_width - agent.position[0],
+        agent.position[1],
+        state.arena_height - agent.position[1],
+    )
+    return -1.0 if wall_distance <= EDGE_MARGIN else 0.0
 
 
 def _ally_death_penalty(

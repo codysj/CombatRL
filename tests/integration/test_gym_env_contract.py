@@ -123,3 +123,22 @@ def test_optional_sb3_dummy_vec_env_instantiates_when_installed() -> None:
         vec_env.close()
 
     assert observation.shape[-1] == 49
+
+
+def test_last_step_events_cover_all_decision_interval_ticks() -> None:
+    env = CombatRLGymEnv(ENV_CONFIG_PATH)
+    try:
+        env.reset(seed=42)
+        assert env.last_step_events == []
+        _, _, terminated, truncated, info = env.step(0)
+        step_events = env.last_step_events
+        action_events = [
+            event for event in step_events if event.event_type == "agent_action_selected"
+        ]
+        agent_count = len(info["ally_agent_ids"]) + len(info["enemy_agent_ids"]) + 1
+        expected_ticks = env.env_config.decision_interval_ticks
+        assert not terminated and not truncated
+        assert len(action_events) == expected_ticks * agent_count
+        assert info["events_count"] == len(step_events)
+    finally:
+        env.close()

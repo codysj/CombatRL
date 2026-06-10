@@ -37,6 +37,15 @@ class PPOTrainingConfig(BaseModel):
     save_sample_replay: bool = True
     sample_replay_seed: int = 123
     deterministic_eval: bool = True
+    init_checkpoint: str | Path | None = None
+
+    @model_validator(mode="after")
+    def validate_init_checkpoint(self) -> "PPOTrainingConfig":
+        """Fail fast when a configured warm-start checkpoint does not exist."""
+        if self.init_checkpoint is not None and not Path(self.init_checkpoint).exists():
+            msg = f"init_checkpoint does not exist: {self.init_checkpoint}"
+            raise ValueError(msg)
+        return self
 
     @model_validator(mode="after")
     def validate_ppo_config(self) -> "PPOTrainingConfig":

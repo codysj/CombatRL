@@ -274,8 +274,10 @@ class BenchmarkSuite:
                     action_id = int(rng.choice(np.flatnonzero(mask)))
                 observation, _, terminated, truncated, _ = env.step(action_id)
                 engine = _require_engine(env)
-                step_events = engine.last_events
-                frame = build_replay_frame(engine.state, step_events)
+                # Full decision-interval events go to the event stream; the frame
+                # may only embed events from its own tick.
+                step_events = env.last_step_events
+                frame = build_replay_frame(engine.state, engine.last_events)
                 events.extend(step_events)
                 frames.append(frame)
                 if writer is not None:

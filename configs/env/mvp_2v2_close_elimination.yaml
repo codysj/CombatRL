@@ -1,0 +1,29 @@
+config_schema_version: "1.0"
+scenario_id: mvp_2v2_close_elimination
+tick_rate_hz: 20
+max_ticks: 900
+arena_width: 100.0
+arena_height: 60.0
+win_condition: elimination
+teams:
+  - team_id: 0
+    agents:
+      - agent_id: team0_tank_0
+        team_id: 0
+        role: tank
+        spawn_position: [38.0, 25.0]
+      - agent_id: team0_ranged_dps_0
+        team_id: 0
+        role: ranged_dps
+        spawn_position: [35.0, 35.0]
+  - team_id: 1
+    agents:
+      - agent_id: team1_tank_0
+        team_id: 1
+        role: tank
+        spawn_position: [62.0, 25.0]
+      - agent_id: team1_ranged_dps_0
+        team_id: 1
+        role: ranged_dps
+        spawn_position: [65.0, 35.0]
+obstacles: []

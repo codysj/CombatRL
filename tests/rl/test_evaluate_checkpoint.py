@@ -26,6 +26,36 @@ def test_evaluate_checkpoint_returns_finite_metrics(tmp_path: Path) -> None:
         assert math.isfinite(float(metrics[key]))
     assert Path(metrics["metrics_path"]).exists()
 
+    # --- new degenerate-policy detection keys ---
+    assert "action_histogram" in metrics
+    assert "action_rates" in metrics
+    assert "no_op_rate" in metrics
+    assert "attack_action_rate" in metrics
+    assert "movement_action_rate" in metrics
+
+    # Histogram counts must sum to total_steps (episode length).
+    total_steps = sum(metrics["action_histogram"].values())
+    episode_length = int(round(metrics["mean_episode_length"]))
+    # When num_episodes=1 the sum must equal the single episode length.
+    assert total_steps == episode_length, (
+        f"histogram sum {total_steps} != episode length {episode_length}"
+    )
+
+    # Rates must sum to ~1.0 (within floating-point tolerance).
+    rate_sum = sum(metrics["action_rates"].values())
+    assert abs(rate_sum - 1.0) < 1e-6, f"action_rates sum {rate_sum} != 1.0"
+
+    # Summary rates are floats in [0, 1].
+    for key in ("no_op_rate", "attack_action_rate", "movement_action_rate"):
+        val = float(metrics[key])
+        assert 0.0 <= val <= 1.0, f"{key}={val} out of range"
+
+    # no_op + attack + movement must equal the full rate sum (~1.0).
+    combined = (
+        metrics["no_op_rate"] + metrics["attack_action_rate"] + metrics["movement_action_rate"]
+    )
+    assert abs(combined - 1.0) < 1e-6, f"combined summary rates {combined} != 1.0"
+
 
 def _tiny_training_config(tmp_path: Path) -> Path:
     payload = yaml.safe_load(

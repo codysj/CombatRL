@@ -73,6 +73,17 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         self._seed = 0 if self.env_config.seed is None else self.env_config.seed
         self._done = False
         self._truncated_error: str | None = None
+        self._last_step_events: list[EventLog] = []
+
+    @property
+    def last_step_events(self) -> list[EventLog]:
+        """All simulator events from every tick of the most recent step().
+
+        Unlike SimulationEngine.last_events, which only holds the final tick of
+        a multi-tick decision interval, this covers the full interval. Replay
+        capture must use this to avoid dropping events.
+        """
+        return list(self._last_step_events)
 
     def reset(
         self,
@@ -87,6 +98,7 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         self._engine = SimulationEngine(config=self.simulation_config, seed=self._seed)
         self._done = False
         self._truncated_error = None
+        self._last_step_events = []
         self._policy_by_agent_id = self._build_policy_map(self._engine.state, self._seed)
         observation = self._build_numpy_observation(self._engine.state)
         info = self._base_info(self._engine.state)
@@ -173,6 +185,7 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         except InvariantViolation as exc:
             self._truncated_error = str(exc)
 
+        self._last_step_events = list(step_events)
         current_state = self._engine.state
         controlled_death_termination = (
             self.env_config.terminate_on_controlled_death

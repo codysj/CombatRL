@@ -31,24 +31,43 @@ def train_ppo(config_path: str | Path, smoke: bool = False) -> Path:
     train_env = make_vec_envs(config, eval_mode=False)
     eval_env = make_vec_envs(config, eval_mode=True)
     try:
-        model = PPO(
-            config.policy,
-            train_env,
-            seed=config.seed,
-            n_steps=config.n_steps,
-            batch_size=config.batch_size,
-            n_epochs=config.n_epochs,
-            gamma=config.gamma,
-            gae_lambda=config.gae_lambda,
-            learning_rate=config.learning_rate,
-            clip_range=config.clip_range,
-            ent_coef=config.ent_coef,
-            vf_coef=config.vf_coef,
-            max_grad_norm=config.max_grad_norm,
-            tensorboard_log=str(config.tensorboard_log) if config.tensorboard_log else None,
-            verbose=0,
-            device="cpu",
-        )
+        if config.init_checkpoint is not None:
+            model = PPO.load(
+                Path(config.init_checkpoint),
+                env=train_env,
+                device="cpu",
+                seed=config.seed,
+                n_steps=config.n_steps,
+                batch_size=config.batch_size,
+                n_epochs=config.n_epochs,
+                gamma=config.gamma,
+                gae_lambda=config.gae_lambda,
+                learning_rate=config.learning_rate,
+                clip_range=config.clip_range,
+                ent_coef=config.ent_coef,
+                vf_coef=config.vf_coef,
+                max_grad_norm=config.max_grad_norm,
+                tensorboard_log=str(config.tensorboard_log) if config.tensorboard_log else None,
+            )
+        else:
+            model = PPO(
+                config.policy,
+                train_env,
+                seed=config.seed,
+                n_steps=config.n_steps,
+                batch_size=config.batch_size,
+                n_epochs=config.n_epochs,
+                gamma=config.gamma,
+                gae_lambda=config.gae_lambda,
+                learning_rate=config.learning_rate,
+                clip_range=config.clip_range,
+                ent_coef=config.ent_coef,
+                vf_coef=config.vf_coef,
+                max_grad_norm=config.max_grad_norm,
+                tensorboard_log=str(config.tensorboard_log) if config.tensorboard_log else None,
+                verbose=0,
+                device="cpu",
+            )
         callbacks = build_callbacks(config, run_dir, eval_env)
         model.learn(
             total_timesteps=total_timesteps,
@@ -91,7 +110,11 @@ def train_ppo(config_path: str | Path, smoke: bool = False) -> Path:
             training_config_path=resolved_config_path,
             total_timesteps=total_timesteps,
             seed=config.seed,
-            notes="Smoke run" if smoke else "PPO baseline run",
+            notes=(
+                f"Warm-started from {config.init_checkpoint}"
+                if config.init_checkpoint is not None
+                else ("Smoke run" if smoke else "PPO baseline run")
+            ),
         )
         return run_dir
     finally:

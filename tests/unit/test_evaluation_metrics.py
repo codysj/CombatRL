@@ -138,6 +138,109 @@ def _agent(agent_id: str, team_id: int, position: tuple[float, float], hp: float
     )
 
 
+def test_action_rates_from_known_action_mix() -> None:
+    """Known 3-action mix: ATTACK_NEAREST, NO_OP, MOVE_UP → each rate = 1/3."""
+    frames = _frames(winner_team_id=None, terminal_reason="timeout")
+    events = [
+        _action_event(1, "team0_ranged_dps_0", "ATTACK_NEAREST"),
+        _action_event(2, "team0_ranged_dps_0", "NO_OP"),
+        _action_event(2, "team0_ranged_dps_0", "MOVE_UP"),
+    ]
+
+    metrics = compute_match_metrics_from_frames_events(
+        frames,
+        events,
+        "team0_ranged_dps_0",
+    )
+
+    assert abs(float(metrics["action_rate_attack_nearest"]) - 1.0 / 3.0) < 1e-9
+    assert abs(float(metrics["action_rate_no_op"]) - 1.0 / 3.0) < 1e-9
+    assert abs(float(metrics["action_rate_move_up"]) - 1.0 / 3.0) < 1e-9
+    # All other action rates must be 0.0.
+    for action_name in (
+        "move_down",
+        "move_left",
+        "move_right",
+        "move_up_left",
+        "move_up_right",
+        "move_down_left",
+        "move_down_right",
+    ):
+        assert metrics[f"action_rate_{action_name}"] == 0.0, action_name
+
+
+def test_action_rates_all_no_op() -> None:
+    """All NO_OP → no_op rate = 1.0, all others = 0.0."""
+    frames = _frames(winner_team_id=None, terminal_reason="timeout")
+    events = [
+        _action_event(1, "team0_ranged_dps_0", "NO_OP"),
+        _action_event(2, "team0_ranged_dps_0", "NO_OP"),
+    ]
+
+    metrics = compute_match_metrics_from_frames_events(
+        frames,
+        events,
+        "team0_ranged_dps_0",
+    )
+
+    assert metrics["action_rate_no_op"] == 1.0
+    assert metrics["action_rate_move_up"] == 0.0
+    assert metrics["action_rate_attack_nearest"] == 0.0
+
+
+def test_edge_occupancy_rate_at_wall() -> None:
+    """Agent parked at (2, 30) — within 5.0 of left wall → edge_occupancy_rate = 1.0."""
+    # Build frames where the controlled agent is at x=2 (distance 2 from left wall).
+    frames = [
+        _frame_with_position(0, winner_team_id=None, terminal_reason=None, position=(2.0, 30.0)),
+        _frame_with_position(1, winner_team_id=None, terminal_reason=None, position=(2.0, 30.0)),
+    ]
+    metrics = compute_match_metrics_from_frames_events(frames, [], "team0_ranged_dps_0")
+    assert metrics["edge_occupancy_rate"] == 1.0
+
+
+def test_edge_occupancy_rate_in_center() -> None:
+    """Agent in the middle of a 100×60 arena — far from all walls → edge_occupancy_rate = 0.0."""
+    frames = [
+        _frame_with_position(0, winner_team_id=None, terminal_reason=None, position=(50.0, 30.0)),
+        _frame_with_position(1, winner_team_id=None, terminal_reason=None, position=(50.0, 30.0)),
+    ]
+    metrics = compute_match_metrics_from_frames_events(frames, [], "team0_ranged_dps_0")
+    assert metrics["edge_occupancy_rate"] == 0.0
+
+
+def _frame_with_position(
+    tick: int,
+    *,
+    winner_team_id: int | None,
+    terminal_reason: str | None,
+    position: tuple[float, float],
+) -> "ReplayFrame":
+    """Like _frame but with a custom controlled-agent position."""
+    from combatrl.core.constants import REPLAY_SCHEMA_VERSION
+    from combatrl.schemas.replay import ReplayFrame
+
+    return ReplayFrame(
+        replay_schema_version=REPLAY_SCHEMA_VERSION,
+        match_id="match",
+        tick=tick,
+        sim_time_seconds=float(tick) / 20.0,
+        agents=[
+            _agent("team0_ranged_dps_0", 0, position, 90.0),
+            _agent("team1_ranged_dps_0", 1, (80.0, 30.0), 80.0),
+        ],
+        events=[],
+        scoreboard={
+            "team0_alive": 1,
+            "team1_alive": 1,
+            "arena_width": 100.0,
+            "arena_height": 60.0,
+            "winner_team_id": winner_team_id,
+            "terminal_reason": terminal_reason,
+        },
+    )
+
+
 def _action_event(
     tick: int,
     agent_id: str,

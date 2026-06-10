@@ -63,9 +63,10 @@ def save_policy_replay(
             if env._engine is None:  # noqa: SLF001
                 msg = "environment simulator became unavailable during replay capture"
                 raise RuntimeError(msg)
-            step_events = env._engine.last_events  # noqa: SLF001
+            step_events = env.last_step_events
             writer.write_events(step_events)
-            writer.write_frame(build_replay_frame(env._engine.state, step_events))  # noqa: SLF001
+            final_tick_events = env._engine.last_events  # noqa: SLF001
+            writer.write_frame(build_replay_frame(env._engine.state, final_tick_events))  # noqa: SLF001
 
         if env._engine is None:  # noqa: SLF001
             msg = "environment simulator became unavailable before replay finalization"

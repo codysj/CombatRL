@@ -87,6 +87,7 @@ def compute_match_metrics_from_frames_events(
     shared_target_attacks = 0
     ally_peel_actions = 0
     live_action_count = 0
+    action_type_counts: dict[ActionType, int] = {at: 0 for at in ActionType}
 
     frame_by_tick = {int(frame.tick): frame for frame in sorted_frames}
     for event in sorted_events:
@@ -119,6 +120,7 @@ def compute_match_metrics_from_frames_events(
             is_live_action = previous_agent is not None and previous_agent.alive
             if is_live_action:
                 live_action_count += 1
+                action_type_counts[action_type] = action_type_counts.get(action_type, 0) + 1
             if payload.get("valid") is False or payload.get("fallback_used") is True:
                 invalid_actions += 1
             if not is_live_action:
@@ -146,6 +148,12 @@ def compute_match_metrics_from_frames_events(
 
     frame_metrics = _compute_frame_metrics(sorted_frames, controlled_agent_id)
     survival_ticks = frame_metrics["survival_ticks"]
+    action_rates: dict[str, MetricValue] = {
+        f"action_rate_{at.value.lower()}": _safe_div(
+            action_type_counts.get(at, 0), live_action_count
+        )
+        for at in ActionType
+    }
     metrics: dict[str, MetricValue] = {
         **_outcome_metrics(winner_team_id, controlled_team_id, _optional_str(terminal_reason)),
         "damage_dealt": damage_dealt,
@@ -183,6 +191,8 @@ def compute_match_metrics_from_frames_events(
         "event_count": len(sorted_events),
         "first_tick": int(first_frame.tick),
         "final_tick": int(final_frame.tick),
+        "edge_occupancy_rate": frame_metrics["edge_occupancy_rate"],
+        **action_rates,
     }
     return metrics
 
@@ -199,9 +209,18 @@ def _compute_frame_metrics(
     attack_range_samples = 0
     enemy_threat_samples = 0
     center_samples = 0
+    edge_samples = 0
     live_samples = 0
     survival_tick = int(frames[0].tick)
     ally_survival_by_id: dict[str, int] = {}
+
+    # Determine arena bounds from scoreboard with fallback.
+    arena_width_sb = frames[-1].scoreboard.get("arena_width", 100.0)
+    arena_width_bounds = float(arena_width_sb) if isinstance(arena_width_sb, int | float) else 100.0
+    arena_height_sb = frames[-1].scoreboard.get("arena_height", 60.0)
+    arena_height_bounds = (
+        float(arena_height_sb) if isinstance(arena_height_sb, int | float) else 60.0
+    )
 
     for frame in frames:
         agents = _agent_by_id(frame)
@@ -241,6 +260,14 @@ def _compute_frame_metrics(
             ally_distance_samples += 1
         if _in_center(frame, controlled):
             center_samples += 1
+        wall_dist = min(
+            controlled.position[0],
+            arena_width_bounds - controlled.position[0],
+            controlled.position[1],
+            arena_height_bounds - controlled.position[1],
+        )
+        if wall_dist <= 5.0:
+            edge_samples += 1
 
     avg_ally_distance = _safe_div(ally_distance_sum, ally_distance_samples)
     arena_width_value = frames[-1].scoreboard.get("arena_width", 100.0)
@@ -259,6 +286,7 @@ def _compute_frame_metrics(
         "time_in_attack_range_rate": _safe_div(attack_range_samples, live_samples),
         "time_in_enemy_threat_range_rate": _safe_div(enemy_threat_samples, live_samples),
         "center_control_rate": _safe_div(center_samples, live_samples),
+        "edge_occupancy_rate": _safe_div(edge_samples, live_samples),
         "ally_survival_ticks": sum(ally_survival_by_id.values()),
         "cohesion_score": max(0.0, 1.0 - _safe_div(avg_ally_distance, arena_diag)),
     }
@@ -276,6 +304,7 @@ def _outcome_metrics(
 
 
 def _empty_metrics() -> dict[str, MetricValue]:
+    action_rate_names = tuple(f"action_rate_{at.value.lower()}" for at in ActionType)
     names = (
         "win",
         "loss",
@@ -296,6 +325,7 @@ def _empty_metrics() -> dict[str, MetricValue]:
         "time_in_attack_range_rate",
         "time_in_enemy_threat_range_rate",
         "center_control_rate",
+        "edge_occupancy_rate",
         "shared_target_rate",
         "ally_peel_rate",
         "ally_survival_ticks",
@@ -309,6 +339,7 @@ def _empty_metrics() -> dict[str, MetricValue]:
         "event_count",
         "first_tick",
         "final_tick",
+        *action_rate_names,
     )
     return {name: 0.0 for name in names}
 

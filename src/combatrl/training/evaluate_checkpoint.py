@@ -11,7 +11,12 @@ import numpy as np
 from stable_baselines3 import PPO
 
 from combatrl.envs import CombatRLGymEnv
+from combatrl.envs.action_codec import ACTION_ID_TO_TYPE, MOVEMENT_ACTION_TYPES
+from combatrl.schemas.actions import ActionType
 from combatrl.training.replay_policy import save_policy_replay
+
+# Ordered action names matching ACTION_ID_TO_TYPE index positions.
+_ACTION_NAMES: tuple[str, ...] = tuple(at.value.lower() for at in ACTION_ID_TO_TYPE)
 
 
 def evaluate_checkpoint(
@@ -39,6 +44,7 @@ def evaluate_checkpoint(
     total_steps = 0
     damage_dealt: list[float] = []
     damage_taken: list[float] = []
+    action_counts: dict[str, int] = {name: 0 for name in _ACTION_NAMES}
 
     env = CombatRLGymEnv(env_config_path, render_mode=None)
     controlled_team_id = _controlled_team_id(env)
@@ -54,10 +60,13 @@ def evaluate_checkpoint(
             final_info: dict[str, Any] = {}
             while not (terminated or truncated):
                 action, _ = model.predict(observation, deterministic=deterministic)
-                observation, reward, terminated, truncated, info = env.step(int(action))
+                action_int = int(action)
+                observation, reward, terminated, truncated, info = env.step(action_int)
                 episode_reward += float(reward)
                 episode_length += 1
                 total_steps += 1
+                if 0 <= action_int < len(_ACTION_NAMES):
+                    action_counts[_ACTION_NAMES[action_int]] += 1
                 invalid_actions += int(bool(info.get("invalid_action", False)))
                 components = info.get("reward_breakdown", {}).get("components", {})
                 episode_damage_dealt += max(0.0, float(components.get("damage_dealt", 0.0))) * 100.0
@@ -81,6 +90,13 @@ def evaluate_checkpoint(
     finally:
         env.close()
 
+    action_rates: dict[str, float] = {
+        name: action_counts[name] / max(total_steps, 1) for name in _ACTION_NAMES
+    }
+    movement_names = frozenset(at.value.lower() for at in MOVEMENT_ACTION_TYPES)
+    no_op_rate = action_rates.get(ActionType.NO_OP.value.lower(), 0.0)
+    attack_action_rate = action_rates.get(ActionType.ATTACK_NEAREST.value.lower(), 0.0)
+    movement_action_rate = sum(action_rates.get(name, 0.0) for name in movement_names)
     metrics: dict[str, Any] = {
         "checkpoint_path": str(checkpoint),
         "env_config_path": str(env_config_path),
@@ -97,6 +113,11 @@ def evaluate_checkpoint(
         "mean_damage_dealt": _mean(damage_dealt),
         "mean_damage_taken": _mean(damage_taken),
         "created_at_utc": datetime.now(UTC).isoformat(),
+        "action_histogram": dict(action_counts),
+        "action_rates": action_rates,
+        "no_op_rate": no_op_rate,
+        "attack_action_rate": attack_action_rate,
+        "movement_action_rate": movement_action_rate,
     }
 
     if save_replay:

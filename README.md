@@ -356,9 +356,13 @@ uv run python scripts/validate_replay.py <sample_replay_path>
 ```
 
 The smoke run only proves that PPO, checkpointing, evaluation, metadata, and
-replay capture work. The "beats random" learning criterion is a manual longer
-run target: increase timesteps gradually, inspect replays, then compare against
-the random baseline before trusting reward curves.
+replay capture work. For PPO that actually fights, use the staged curriculum
+configs (`configs/training/ppo_curriculum_s1_close1v1.yaml` through
+`ppo_curriculum_s5_2v2.yaml`) with `--init-checkpoint` to warm-start each stage
+from the previous one; see `docs/rl_training.md` and
+`artifacts/reports/ppo_trainability_pass_20260610.md`. Evaluation artifacts
+include per-action histograms and edge-occupancy metrics so degenerate
+policies are immediately visible.
 
 ## Replays
 

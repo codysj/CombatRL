@@ -21,6 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--total-timesteps", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--init-checkpoint", type=Path, default=None)
     return parser.parse_args()
 
 
@@ -28,7 +29,12 @@ def main() -> int:
     args = parse_args()
     config_path = args.config
     temp_config_path: Path | None = None
-    if args.total_timesteps is not None or args.seed is not None:
+    has_overrides = (
+        args.total_timesteps is not None
+        or args.seed is not None
+        or args.init_checkpoint is not None
+    )
+    if has_overrides:
         temp_config_path = _override_config(args)
         config_path = temp_config_path
 
@@ -60,6 +66,8 @@ def _override_config(args: argparse.Namespace) -> Path:
         payload[key] = args.total_timesteps
     if args.seed is not None:
         payload["seed"] = args.seed
+    if args.init_checkpoint is not None:
+        payload["init_checkpoint"] = str(args.init_checkpoint)
     temp_path = args.config.parent / f".{args.config.stem}_override.yaml"
     temp_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     return temp_path
