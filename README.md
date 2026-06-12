@@ -1,304 +1,128 @@
-# CombatRL
+<div align="center">
 
-CombatRL is a deterministic, headless-first tactical arena simulation project for
-studying reinforcement learning, multi-agent behavior, replay analytics, and
-behavior-profile control. The simulator is intentionally built around stable
-schemas and replay-first debugging so later systems can be tested independently.
+# ⚔️ CombatRL
 
-## Phase Status
+**A deterministic, headless-first tactical arena for reinforcement-learning research,
+multi-agent behavior, replay analytics, and natural-language behavior control.**
 
-Phase P10 adds natural-language-to-profile parsing on top of the stable 2v2
-team-aware environment and behavior-profile system. The project can load the default MVP config, initialize a 2v2
-match, run bot-vs-bot matches to elimination or timeout, save replay artifacts,
-validate them, render saved frames without recomputing simulation logic, run
-headless 2v2 rollouts through `CombatRLGymEnv`, train PPO smoke baselines for
-1v1 or 2v2 configs, save SB3 checkpoints, evaluate checkpoints, and generate
-sample replay artifacts from evaluated policies. It can also load bounded
-numeric behavior profiles and compare heuristic, profiled, random, and PPO
-policies across fixed seeds with JSON, CSV, JSONL, Markdown, and sample replay
-artifacts. Natural-language commands can now be translated into validated
-`BehaviorProfile` objects and compared through the existing evaluation stack.
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Code style: ruff](https://img.shields.io/badge/lint-ruff-261230.svg)](https://github.com/astral-sh/ruff)
+[![Typing: mypy](https://img.shields.io/badge/typing-mypy-blue.svg)](https://mypy-lang.org/)
+[![RL: Stable-Baselines3](https://img.shields.io/badge/RL-Stable--Baselines3-orange.svg)](https://stable-baselines3.readthedocs.io/)
 
-Objective control, pathfinding, frontend, backend, PettingZoo, self-play,
-opponent pools, and advanced MARL systems are intentionally not implemented yet.
+<br/>
 
-## Simulator Model
+<img src="docs/media/ppo_2v2_match.gif" alt="PPO agent winning a 2v2 elimination match" width="640"/>
 
-Actions are discrete `ActionCommand` values:
+<sub><i>A PPO policy (blue, controlling the bottom-left ranged DPS) advancing from spawn, engaging at range,
+and eliminating the enemy team — rendered directly from a saved replay. Circles are attack ranges,
+bars are HP, orange lines are live attacks.</i></sub>
 
-- `NO_OP`
-- cardinal and diagonal movement actions
-- `ATTACK_NEAREST`
+</div>
 
-Movement uses fixed timestep logic:
+---
 
-```text
-new_position = old_position + normalized_direction * movement_speed * dt
-dt = 1.0 / tick_rate_hz
-```
+## Overview
 
-Diagonal movement is normalized, positions clamp to the arena, and dead agents
-cannot move or attack. Combat is intentionally minimal: `ATTACK_NEAREST` selects
-the nearest alive enemy in range, resolves ties by sorted `agent_id`, applies
-instant damage, clamps HP at zero, and sets attack cooldown on successful hits.
+CombatRL is a compact tactical combat simulator built **simulator-first**: a deterministic,
+fully-typed core with stable schemas and replay-based debugging, so every layer above it —
+the Gymnasium environment, PPO training, the evaluation harness, behavior profiles, and a
+natural-language command parser — can be tested and trusted independently.
 
-Per tick, the simulator executes:
+The design goal is reproducibility. The same seed produces the same match, byte-for-byte
+(ignoring timestamps), and **every match can be replayed, validated, and rendered from disk
+without ever recomputing simulation logic**. That makes results auditable instead of anecdotal.
 
-1. Validate actions.
-2. Resolve movement.
-3. Resolve attacks.
-4. Apply deaths.
-5. Decrement cooldowns.
-6. Evaluate terminal state.
-7. Increment tick.
-8. Validate invariants.
+### What it does
 
-## Setup
+- 🎮 **Deterministic 1v1 / 2v2 combat sim** — discrete actions, fixed-timestep movement, minimal
+  combat resolution, strict per-tick invariant checks.
+- 🤖 **Gymnasium RL environment** — a thin wrapper (`CombatRLGymEnv`) exposing a 49-feature
+  observation and a 10-action discrete space; all rules stay in the engine.
+- 🏋️ **PPO training with a working curriculum** — Stable-Baselines3 PPO that goes from "refuses to
+  fight" to **96.7% win rate** over a 5-stage shaped curriculum (see results below).
+- 📊 **Evaluation harness** — fixed-seed, multi-format metrics (JSON / CSV / JSONL / Markdown +
+  replay samples) with per-action histograms and edge-occupancy so degenerate policies are
+  obvious at a glance.
+- 🧭 **Behavior profiles** — bounded numeric control axes (aggression, caution, cohesion, spacing…)
+  that rerank action candidates at inference time without retraining.
+- 💬 **Natural-language → behavior** — translate `"protect ally and stay together"` into a
+  validated `BehaviorProfile`, with explicit reporting of unsupported requests.
+- 🎞️ **Replay-first tooling** — record, validate, and render any match deterministically from disk.
 
-Install dependencies:
+> **Heads-up — this is a research scaffold, not a polished game.** Objective control, pathfinding,
+> a backend/frontend dashboard, self-play, and advanced MARL are intentionally **not** implemented
+> yet. See [Limitations & honest caveats](#limitations--honest-caveats).
+
+---
+
+## Headline result: teaching PPO to actually fight
+
+The baseline 2v2 PPO agent learned the *wrong* lesson perfectly: it picked `MOVE_UP` **100%** of
+the time, sprinted to a wall, and camped there until timeout — because spawns are ~70 units apart,
+attack range is only 18, and passivity is a safe local optimum. Random exploration essentially
+never lands a hit, so there's no gradient toward combat.
+
+The fix was **structural, not hyperparameter tuning**: opt-in reward shaping (approach / in-range /
+landed-hit bonuses + an edge penalty) plus a **5-stage warm-started curriculum** that grows spawn
+distance and opponent difficulty. The canonical sparse reward and public schemas were left
+untouched; shaping is enabled only in the training configs.
+
+### Final evaluation — canonical 2v2, 30 fixed seeds (1000–1029)
+
+| Metric | **PPO (curriculum S5)** | Random baseline |
+|---|---:|---:|
+| Win rate | **0.967** (29/30) | 0.000 |
+| Timeout rate | 0.033 | 1.000 |
+| Mean damage dealt (controlled agent) | **244.7** | 43.1 |
+| Controlled-agent deaths | **0 / 30** | — |
+| No-op rate | 0.000 | — |
+| Edge-occupancy rate | 0.017 | — |
+
+The trained policy advances from spawn, reaches engagement range by ~tick 200, lands its first
+damage at tick 177, and personally deals the enemy team's entire 250 HP while its protector
+teammate front-lines. **96.8%** of attack selections happen with an enemy actually in range —
+the whiff-spam is gone.
+
+<div align="center">
+<table>
+<tr>
+<td align="center"><img src="docs/media/frame_open.png" width="270"/><br/><sub><b>Spawn</b> — two ranged + tank per team, 70 units apart</sub></td>
+<td align="center"><img src="docs/media/frame_engage.png" width="270"/><br/><sub><b>Engage</b> — PPO agent has closed to attack range</sub></td>
+<td align="center"><img src="docs/media/frame_finish.png" width="270"/><br/><sub><b>Eliminate</b> — enemy team down (gray), match ends</sub></td>
+</tr>
+</table>
+</div>
+
+📄 Full write-up with root-cause analysis, per-stage curriculum table, and caveats:
+[`artifacts/reports/ppo_trainability_pass_20260610.md`](artifacts/reports/ppo_trainability_pass_20260610.md)
+
+**Reproduce the demo above** (requires the renderer extra):
 
 ```powershell
+uv run python scripts/render_replay.py artifacts/metrics/evaluations/eval_20260610T222204Z_mvp_2v2_elimination_model_final_seed-1000-1029/replays/seed_1000/mvp_2v2_elimination_seed-1000
+```
+
+---
+
+## Quickstart
+
+```powershell
+# 1. Install (core + dev tooling)
 uv sync --extra dev
-```
 
-Install the optional renderer:
-
-```powershell
+# 2. (Optional) add the Pygame renderer for watchable replays
 uv sync --extra dev --extra renderer
-```
 
-Run tests:
-
-```powershell
-uv run pytest
-```
-
-Run linting:
-
-```powershell
-uv run ruff check .
-uv run ruff format --check .
-```
-
-Run the headless match script:
-
-```powershell
-uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --seed 42
-```
-
-Run the Gymnasium environment check:
-
-```powershell
-uv run python scripts/check_env.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 5 --seed 42
-```
-
-Run a short PPO smoke train:
-
-```powershell
-uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml --smoke
-uv run python scripts/train_ppo.py --config configs/training/ppo_2v2_baseline.yaml --smoke
-```
-
-Evaluate a checkpoint:
-
-```powershell
-uv run python scripts/evaluate_checkpoint.py <run_dir>/model_final.zip --env-config configs/env/gym_1v1_ranged_vs_random.yaml --episodes 5 --seed-start 1000
-```
-
-Run and save a replay:
-
-```powershell
+# 3. Run a deterministic bot match and save a replay
 uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --seed 42 --save-replay
+
+# 4. Render it
+uv run python scripts/render_replay.py <printed_replay_path>
 ```
 
-Expected summary fields include:
-
-- `scenario_id: mvp_2v2_elimination`
-- `team0_policy`
-- `team1_policy`
-- `agent_count: 4`
-- `final_tick`
-- `terminal: true`
-- `terminal_reason: elimination` or `terminal_reason: timeout`
-- `winner_team_id`
-- `replay_path` when `--save-replay` is used
-- `replay_frame_count` when `--save-replay` is used
-- `replay_event_count` when `--save-replay` is used
-
-## Heuristic Baseline Agents
-
-Available policy IDs:
-
-- `random`: seeded uniform random simple actions.
-- `aggressive`: closes on the lowest-HP live enemy and attacks when ready.
-- `defensive`: retreats when low HP or pressured, regroups with allies, and
-  attacks only from safer positions.
-- `kiter`: tries to stay near attack range and backs up when enemies are too
-  close.
-- `protector`: stays near vulnerable allies and attacks enemies threatening
-  them.
-- `profiled:<profile>`: wraps the aggressive base policy with a behavior
-  profile.
-- `profiled:<base_policy>:<profile>`: wraps a selected base policy with a
-  behavior profile.
-
-Run bot matchups:
-
-```powershell
-uv run python scripts/run_match.py --team0-policy kiter --team1-policy aggressive --seed 42 --save-replay
-uv run python scripts/run_match.py --team0-policy protector --team1-policy aggressive --seed 42 --save-replay
-uv run python scripts/run_match.py --team0-policy profiled:defensive --team1-policy aggressive --seed 42 --save-replay
-```
-
-Optional role overrides:
-
-```powershell
-uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --team0-tank-policy protector --team0-ranged-policy kiter --seed 42
-```
-
-## Behavior Profiles
-
-Manual profile presets live under `configs/profiles/`: `balanced`,
-`aggressive`, `defensive`, `kiter`, and `protective`. A profile is a numeric
-control object with bounded axes for aggression, caution, cohesion,
-protectiveness, focus fire, greed, spacing, and reserved objective bias.
-Profiles rerank existing valid action candidates at inference time; they do not
-retrain policies, change simulator rules, mutate simulator state, output raw
-actions, or change observation shape.
-
-List profiles:
-
-```powershell
-uv run python -c "from combatrl.profiles.loader import list_profiles; print(list_profiles())"
-```
-
-Run a comparison:
-
-```powershell
-uv run python scripts/compare_profiles.py --profiles aggressive defensive protective kiter balanced --base-policy aggressive --num-seeds 10 --save-replays
-```
-
-The comparison now uses the P9 evaluation framework. It writes per-profile P9
-evaluation artifacts, JSON and CSV profile summaries, a Markdown comparison
-report, and one sample replay per profile when `--save-replays` is enabled.
-Expected coarse signals are higher attack rate for aggressive, higher retreat
-rate for defensive, lower ally distance for protective, and greater enemy
-spacing for kiter.
-
-## NLP Command Parser
-
-P10 maps natural language to the existing `BehaviorProfile` schema. The NLP
-layer is a translator, not a controller: it never calls `env.step`, emits raw
-action IDs, mutates simulator state, executes code, or invents unsupported
-profile fields.
-
-Parse commands:
-
-```powershell
-uv run python scripts/parse_command.py "play aggressively"
-uv run python scripts/parse_command.py "protect ally and stay together"
-uv run python scripts/parse_command.py "kite backward and avoid close combat"
-uv run python scripts/parse_command.py "teleport behind them and buy items"
-```
-
-Save a parsed profile:
-
-```powershell
-uv run python scripts/parse_command.py "protect ally" --output-profile artifacts/profiles/protect_ally.yaml
-```
-
-Run command-driven comparisons:
-
-```powershell
-uv run python scripts/compare_command_profiles.py --commands "play aggressively" "protect ally" "kite backward" --num-seeds 3 --save-replays
-```
-
-The parser has deterministic rule mode plus an optional structured-output LLM
-interface that accepts an injected callable. Tests use fake callables only; no
-network access or API key is required. Unsupported requests such as teleporting,
-items, fog, wards, ultimates, healing, revives, summons, building, or unsupported
-spells are reported explicitly in `unsupported_requests`.
-
-## Evaluation Framework
-
-Evaluation artifacts are local files under:
-
-```text
-artifacts/metrics/evaluations/<evaluation_id>/
-```
-
-Each run writes `evaluation_result.json`, `per_match_metrics.csv`,
-`per_match_metrics.jsonl`, `evaluation_report.md`, and optional replay samples.
-Metrics are computed from replay frames/events where possible and include match
-outcome, damage, survival, spacing, attack/retreat/no-op rates, ally distance,
-cohesion, and best-effort teamwork metrics.
-
-Run a tiny heuristic evaluation:
-
-```powershell
-uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type heuristic --policy-id aggressive --seed-start 100 --num-seeds 3 --save-replays --replay-sample-count 1
-```
-
-Run a profile evaluation:
-
-```powershell
-uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type profiled --base-policy aggressive --profile defensive --seed-start 100 --num-seeds 30 --save-replays
-```
-
-Run a PPO checkpoint evaluation:
-
-```powershell
-uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type ppo_checkpoint --checkpoint <checkpoint_path> --seed-start 1000 --num-seeds 30
-```
-
-Do not make strong claims from fewer than 20 matches. Prefer at least 30 seeds
-for MVP comparisons, and inspect representative replay samples before drawing
-conclusions.
-
-## Gymnasium Environment
-
-Default env config:
-
-```text
-configs/env/gym_2v2_controlled_ranged.yaml
-```
-
-The wrapper controls `team0_ranged_dps_0`, runs a scripted `protector`
-teammate, and uses `aggressive` plus `random` scripted opponents by default.
-Gymnasium is only a wrapper: simulator state transitions and win conditions remain in
-`SimulationEngine`.
-
-Spaces:
-
-- `observation_space`: `Box(low=-1.0, high=1.0, shape=(49,), dtype=np.float32)`
-- `action_space`: `Discrete(10)`
-
-Actions:
-
-- `0`: `NO_OP`
-- `1`: `MOVE_UP`
-- `2`: `MOVE_DOWN`
-- `3`: `MOVE_LEFT`
-- `4`: `MOVE_RIGHT`
-- `5`: `MOVE_UP_LEFT`
-- `6`: `MOVE_UP_RIGHT`
-- `7`: `MOVE_DOWN_LEFT`
-- `8`: `MOVE_DOWN_RIGHT`
-- `9`: `ATTACK_NEAREST`
-
-The 49-feature observation layout contains self features, one ally slot, two
-enemy slots, arena features, and simple tactical features. Rewards expose a
-breakdown with win/loss, damage dealt, damage taken, death, ally death, invalid
-action, and time components.
-
-Run one 2v2 env episode and save a replay:
-
-```powershell
-uv run python scripts/run_2v2_env_episode.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --seed 42 --policy random --save-replay
-uv run python scripts/validate_replay.py <replay_path>
-```
-
-Basic usage:
+The Gymnasium environment in five lines:
 
 ```python
 from combatrl.envs import CombatRLGymEnv
@@ -309,147 +133,294 @@ observation, reward, terminated, truncated, info = env.step(0)
 env.close()
 ```
 
-See `docs/rl_environment.md` and `docs/phase_p5.md` for the full contract.
+---
 
-## PPO Training
+## How it works
 
-Default training config:
+```
+                 natural language ("kite back and avoid close combat")
+                                  │
+                          ┌───────▼────────┐
+                          │  NLP parser    │  → validated BehaviorProfile
+                          └───────┬────────┘
+                                  │ reranks action candidates (no retrain)
+   heuristic / profiled / PPO ───▶│
+                                  │
+                          ┌───────▼────────┐    ┌──────────────────┐
+                          │ CombatRLGymEnv │◀──▶│  PPO (SB3) train │
+                          │   (wrapper)    │    │  + curriculum    │
+                          └───────┬────────┘    └──────────────────┘
+                                  │ all rules + win conditions live here
+                          ┌───────▼────────┐
+                          │ SimulationEngine│  deterministic, fixed timestep
+                          └───────┬────────┘
+                                  │ emits frames + events
+                    ┌─────────────▼─────────────┐
+                    │ Replays (metadata/frames/ │ → validate → render
+                    │ events/summary, on disk)  │ → P9 evaluation metrics
+                    └───────────────────────────┘
+```
+
+**Per-tick the engine executes** (and validates invariants at the end):
+validate actions → resolve movement → resolve attacks → apply deaths → decrement cooldowns →
+evaluate terminal state → increment tick.
+
+The Gymnasium layer is *only* a wrapper — state transitions and win conditions stay in
+`SimulationEngine`, so the RL stack never becomes the source of truth for game rules.
+
+---
+
+## Usage reference
+
+<details>
+<summary><b>Simulator model</b></summary>
+
+Actions are discrete `ActionCommand` values: `NO_OP`, eight cardinal/diagonal movement actions,
+and `ATTACK_NEAREST`. Movement uses fixed-timestep integration:
 
 ```text
-configs/training/ppo_1v1_baseline.yaml
-configs/training/ppo_2v2_baseline.yaml
+new_position = old_position + normalized_direction * movement_speed * dt
+dt           = 1.0 / tick_rate_hz
 ```
 
-The first baseline uses Stable-Baselines3 PPO with `MlpPolicy`, `DummyVecEnv`,
-separate train/evaluation envs, unique vector-env seeds, CPU execution, SB3
-checkpoint callbacks, and local JSON/CSV artifacts. Training is headless and
-does not import renderer, browser, FastAPI, frontend, or Pygame code.
+Diagonal movement is normalized, positions clamp to the arena, and dead agents cannot act.
+Combat is intentionally minimal: `ATTACK_NEAREST` picks the nearest alive enemy in range, breaks
+ties by sorted `agent_id`, applies instant damage, clamps HP at zero, and sets attack cooldown
+on a successful hit.
 
-Artifacts are saved under:
+</details>
 
-```text
-artifacts/checkpoints/ppo_1v1_baseline/run_<timestamp>/
-```
+<details>
+<summary><b>Heuristic baseline agents</b></summary>
 
-Important files:
-
-- `model_final.zip`: final SB3 checkpoint.
-- `best_model.zip`: best EvalCallback checkpoint when an evaluation fires.
-- `config.yaml`: resolved training config copy.
-- `model_metadata.json`: local checkpoint registry metadata.
-- `metrics.json`: training run summary.
-- `evaluation_metrics.json`: checkpoint evaluation metrics.
-- `eval_history.csv`: converted callback evaluation history when available.
-- `sample_replays/`: optional evaluated-policy replay artifacts.
-
-Run a longer local experiment:
-
-```powershell
-uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml
-```
-
-Generate a sample replay during evaluation:
-
-```powershell
-uv run python scripts/evaluate_checkpoint.py <checkpoint> --env-config configs/env/gym_1v1_ranged_vs_random.yaml --episodes 1 --save-replay
-uv run python scripts/validate_replay.py <sample_replay_path>
-```
-
-The smoke run only proves that PPO, checkpointing, evaluation, metadata, and
-replay capture work. For PPO that actually fights, use the staged curriculum
-configs (`configs/training/ppo_curriculum_s1_close1v1.yaml` through
-`ppo_curriculum_s5_2v2.yaml`) with `--init-checkpoint` to warm-start each stage
-from the previous one; see `docs/rl_training.md` and
-`artifacts/reports/ppo_trainability_pass_20260610.md`. Evaluation artifacts
-include per-action histograms and edge-occupancy metrics so degenerate
-policies are immediately visible.
-
-## Replays
-
-Replay files are written under:
-
-```text
-artifacts/replays/<timestamp>_<scenario_id>_seed-<seed>/
-```
-
-Each replay contains:
-
-- `metadata.json`
-- `frames.jsonl`
-- `events.jsonl`
-- `summary.json`
-
-Validate a replay:
-
-```powershell
-uv run python scripts/validate_replay.py artifacts/replays/<replay-dir>
-```
-
-Render a replay:
-
-```powershell
-uv run python scripts/render_replay.py artifacts/replays/<replay-dir>
-```
-
-Renderer controls:
-
-- `Space`: pause/play
-- `Right arrow`: step forward while paused
-- `Left arrow`: step backward while paused
-- `1`, `2`, `4`: speed controls
-- `Esc` or window close: quit
-
-See `docs/replay_schema.md` and `docs/phase_p3.md` for schema details and
-completion notes.
-
-## Manual Verification
-
-Run:
-
-```powershell
-uv sync
-uv run pytest
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy src
-uv run python scripts/parse_command.py "play aggressively"
-uv run python scripts/parse_command.py "protect ally"
-uv run python scripts/parse_command.py "teleport and buy items"
-uv run python scripts/compare_command_profiles.py --commands "play aggressively" "kite backward" --num-seeds 2 --save-replays
-uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml --smoke
-uv run python scripts/train_ppo.py --config configs/training/ppo_2v2_baseline.yaml --smoke
-uv run python scripts/check_env.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 3 --seed 42
-uv run python scripts/run_2v2_env_episode.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --seed 42 --policy random --save-replay
-uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive --seed 42 --save-replay
-uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type heuristic --policy-id aggressive --seed-start 100 --num-seeds 3 --save-replays --replay-sample-count 1
-```
-
-Validate the printed replay path:
-
-```powershell
-uv run python scripts/validate_replay.py <replay_path>
-uv run python scripts/render_replay.py <replay_path>
-```
-
-Confirm visually that aggressive agents close distance and attack, defensive
-agents retreat when pressured or low HP, HP bars change from attacks, and the
-match terminates by elimination or timeout. Then run:
+| Policy ID | Behavior |
+|---|---|
+| `random` | Seeded uniform random simple actions |
+| `aggressive` | Closes on the lowest-HP live enemy and attacks when ready |
+| `defensive` | Retreats when low HP / pressured, regroups, attacks from safer positions |
+| `kiter` | Stays near attack range, backs up when enemies get too close |
+| `protector` | Stays near vulnerable allies, attacks enemies threatening them |
+| `profiled:<profile>` | Wraps the aggressive base policy with a behavior profile |
+| `profiled:<base>:<profile>` | Wraps a chosen base policy with a behavior profile |
 
 ```powershell
 uv run python scripts/run_match.py --team0-policy kiter --team1-policy aggressive --seed 42 --save-replay
 uv run python scripts/run_match.py --team0-policy protector --team1-policy aggressive --seed 42 --save-replay
+
+# Optional per-role overrides
+uv run python scripts/run_match.py --team0-policy aggressive --team1-policy defensive `
+  --team0-tank-policy protector --team0-ranged-policy kiter --seed 42
 ```
 
-Confirm visually that kiter agents try to maintain spacing and protector agents
-stay closer to allies than the aggressive baseline. Run the same command twice
-with the same seed and confirm summary and replay content are deterministic,
-ignoring timestamps and output directory.
+</details>
 
-See `docs/agents.md`, `docs/phase_p3.md`, `docs/phase_p4.md`,
-`docs/phase_p5.md`, `docs/phase_p6.md`, `docs/rl_environment.md`, and
-`docs/phase_p7.md`, `docs/phase_p8.md`, `docs/profiles.md`,
-`docs/phase_p9.md`, `docs/evaluation.md`, `docs/nlp.md`,
-`docs/phase_p10.md`, `docs/rl_environment.md`, and `docs/rl_training.md` for
-details.
+<details>
+<summary><b>Behavior profiles</b></summary>
 
-Next phase: P11 Backend and Frontend Dashboard.
+A profile is a numeric control object with bounded axes — aggression, caution, cohesion,
+protectiveness, focus fire, greed, spacing, and a reserved objective bias. Profiles **rerank
+valid action candidates at inference time**; they do not retrain policies, change simulator
+rules, mutate state, emit raw actions, or alter observation shape. Presets live under
+`configs/profiles/`: `balanced`, `aggressive`, `defensive`, `kiter`, `protective`.
+
+```powershell
+uv run python scripts/compare_profiles.py --profiles aggressive defensive protective kiter balanced `
+  --base-policy aggressive --num-seeds 10 --save-replays
+```
+
+Comparisons run through the P9 evaluation framework and emit per-profile metrics, JSON/CSV
+summaries, a Markdown report, and one sample replay per profile. Expected coarse signals:
+higher attack rate (aggressive), higher retreat rate (defensive), lower ally distance
+(protective), greater enemy spacing (kiter).
+
+</details>
+
+<details>
+<summary><b>Natural-language command parser</b></summary>
+
+P10 maps natural language onto the existing `BehaviorProfile` schema. The NLP layer is a
+**translator, not a controller**: it never calls `env.step`, emits raw action IDs, mutates state,
+or invents unsupported fields.
+
+```powershell
+uv run python scripts/parse_command.py "play aggressively"
+uv run python scripts/parse_command.py "protect ally and stay together"
+uv run python scripts/parse_command.py "kite backward and avoid close combat"
+uv run python scripts/parse_command.py "teleport behind them and buy items"   # → reported as unsupported
+
+# Save a parsed profile, or run command-driven comparisons
+uv run python scripts/parse_command.py "protect ally" --output-profile artifacts/profiles/protect_ally.yaml
+uv run python scripts/compare_command_profiles.py --commands "play aggressively" "protect ally" "kite backward" --num-seeds 3 --save-replays
+```
+
+A deterministic rule mode is always available; an optional structured-output LLM interface
+accepts an **injected callable** (tests use fakes — no network or API key required). Unsupported
+requests (teleport, items, fog, wards, ultimates, heals, revives, summons, building, …) are
+listed explicitly in `unsupported_requests`.
+
+</details>
+
+<details>
+<summary><b>Gymnasium environment</b></summary>
+
+Default config: `configs/env/gym_2v2_controlled_ranged.yaml`. The wrapper controls
+`team0_ranged_dps_0`, runs a scripted `protector` teammate, and faces `aggressive` + `random`
+scripted opponents by default.
+
+- **Observation:** `Box(low=-1.0, high=1.0, shape=(49,), dtype=float32)` — self features, one ally
+  slot, two enemy slots, arena features, and simple tactical features.
+- **Action:** `Discrete(10)` — `0` NO_OP, `1`–`8` cardinal/diagonal movement, `9` ATTACK_NEAREST.
+- **Reward:** a breakdown with win/loss, damage dealt/taken, death, ally death, invalid action,
+  and time components.
+
+```powershell
+uv run python scripts/check_env.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --episodes 5 --seed 42
+uv run python scripts/run_2v2_env_episode.py --env-config configs/env/gym_2v2_controlled_ranged.yaml --seed 42 --policy random --save-replay
+```
+
+Full contract: [`docs/rl_environment.md`](docs/rl_environment.md), [`docs/phase_p5.md`](docs/phase_p5.md).
+
+</details>
+
+<details>
+<summary><b>PPO training</b></summary>
+
+Stable-Baselines3 PPO with `MlpPolicy`, `DummyVecEnv`, separate train/eval envs, unique
+vector-env seeds, CPU execution, checkpoint callbacks, and local JSON/CSV artifacts. Training is
+fully headless (no renderer / browser / FastAPI / Pygame imports).
+
+```powershell
+# Smoke run — proves PPO, checkpointing, eval, metadata, and replay capture all work
+uv run python scripts/train_ppo.py --config configs/training/ppo_1v1_baseline.yaml --smoke
+
+# Real combat-capable policy: the staged curriculum, warm-started stage to stage
+uv run python scripts/train_ppo.py --config configs/training/ppo_curriculum_s1_close1v1.yaml
+# … through ppo_curriculum_s5_2v2.yaml, each with --init-checkpoint <previous run>/model_final.zip
+```
+
+Artifacts land under `artifacts/checkpoints/<config>/run_<timestamp>/`: `model_final.zip`,
+`best_model.zip`, resolved `config.yaml`, `model_metadata.json`, `metrics.json`,
+`evaluation_metrics.json`, `eval_history.csv`, and optional `sample_replays/`. See
+[`docs/rl_training.md`](docs/rl_training.md).
+
+</details>
+
+<details>
+<summary><b>Evaluation framework</b></summary>
+
+Evaluation runs write to `artifacts/metrics/evaluations/<evaluation_id>/`:
+`evaluation_result.json`, `per_match_metrics.csv`, `per_match_metrics.jsonl`,
+`evaluation_report.md`, and optional replay samples. Metrics are computed from replay
+frames/events where possible — match outcome, damage, survival, spacing, attack/retreat/no-op
+rates, ally distance, cohesion, edge occupancy, per-action histograms, and best-effort teamwork
+metrics.
+
+```powershell
+# Heuristic, profiled, or PPO-checkpoint evaluation
+uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type heuristic --policy-id aggressive --seed-start 100 --num-seeds 30 --save-replays
+uv run python scripts/evaluate_policy.py --scenario configs/env/gym_2v2_controlled_ranged.yaml --policy-type ppo_checkpoint --checkpoint <checkpoint_path> --seed-start 1000 --num-seeds 30
+```
+
+> Don't draw strong conclusions from fewer than 20 matches; prefer ≥30 seeds and always inspect
+> representative replays first.
+
+</details>
+
+<details>
+<summary><b>Replays</b></summary>
+
+Each replay directory contains `metadata.json`, `frames.jsonl`, `events.jsonl`, and
+`summary.json`.
+
+```powershell
+uv run python scripts/validate_replay.py <replay-dir>
+uv run python scripts/render_replay.py <replay-dir>
+```
+
+Renderer controls: `Space` pause/play · `←/→` step while paused · `1`/`2`/`4` speed · `Esc` quit.
+Schema details: [`docs/replay_schema.md`](docs/replay_schema.md).
+
+</details>
+
+---
+
+## Limitations & honest caveats
+
+A portfolio project earns more trust by being explicit about what it *doesn't* show. From the
+[trainability report](artifacts/reports/ppo_trainability_pass_20260610.md):
+
+- **Narrow scenario distribution.** The canonical scenario has *fixed spawns*, so with a
+  deterministic policy nearly all per-seed variation comes from the random opponent bot. The win
+  is real, but the distribution it generalizes over is narrow.
+- **No kiting learned — because nothing forced it.** The policy is a "ranged carry": it does
+  almost all team damage and trades HP frugally, but it does **not** visibly kite or retreat at
+  low HP. There was no opponent pressure that rewarded learning to.
+- **Shaping rewards stay on in the final training stage.** Evaluation metrics (wins, damage,
+  behavior) are computed from replays and are shaping-independent, but the sparse objective was
+  not annealed back in to confirm it sustains the behavior on its own.
+- **Scope.** Objective control, pathfinding, a backend/frontend dashboard, PettingZoo, self-play,
+  opponent pools, and advanced MARL are not implemented yet.
+
+Suggested follow-ups (non-blocking): randomize spawns, anneal shaping toward zero, train the tank
+slot, and introduce stronger/mixed opponents before any self-play work.
+
+---
+
+## Project layout
+
+```text
+src/combatrl/
+├── core/         deterministic primitives & types
+├── sim/          SimulationEngine (rules, win conditions)
+├── schemas/      Pydantic schemas (config, replay, env contracts)
+├── agents/       heuristic baseline policies
+├── envs/         CombatRLGymEnv + reward builder
+├── training/     Stable-Baselines3 PPO training & curriculum
+├── evaluation/   fixed-seed metrics & report generation
+├── profiles/     numeric behavior-profile control
+├── nlp/          natural-language → BehaviorProfile parser
+├── replay/       replay reader/writer
+└── renderer/     optional Pygame replay renderer
+scripts/          CLI entry points (run / train / evaluate / parse / render)
+configs/          env, training, and profile YAML configs
+docs/             phase notes & design specs
+artifacts/        checkpoints, evaluation metrics, replays, reports (generated)
+tests/            62 test modules across unit & integration suites
+```
+
+---
+
+## Development
+
+```powershell
+uv run pytest                      # test suite
+uv run ruff check .                # lint
+uv run ruff format --check .       # format check
+uv run mypy src                    # type check
+```
+
+A fuller manual-verification checklist (bot matchups, determinism re-runs, visual confirmation of
+aggressive/defensive/kiter/protector behavior) lives at the bottom of the relevant phase docs.
+
+---
+
+## Roadmap
+
+CombatRL is built in phases; **P10** (natural-language → profile parsing) is the current head.
+
+| Phase | Focus | Status |
+|---|---|:--:|
+| P3–P4 | Deterministic sim, replays, heuristic agents | ✅ |
+| P5–P6 | Gymnasium environment & PPO baseline | ✅ |
+| P7 | 2v2 team-aware environment | ✅ |
+| P8–P9 | Behavior profiles & evaluation framework | ✅ |
+| P10 | Natural-language command parser | ✅ |
+| **P11** | **Backend & frontend dashboard** | 🔜 next |
+
+Design specs and per-phase completion notes live under [`docs/`](docs/).
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Cody Jung
