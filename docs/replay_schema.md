@@ -133,6 +133,8 @@ Controls:
 - `Esc` or window close: quit
 
 Current limitations: playback is file-based, events are minimal debug events,
-and the renderer is intentionally simple. Heuristic agents, Gymnasium, rewards,
-training, behavior profiles, advanced metrics, support/healer mechanics,
-objective control, and frontend/backend replay viewers are deferred.
+and both renderers are intentionally scoped. The optional Pygame renderer remains
+available, and `frontend/` provides a visualization-only browser viewer for a
+bundled replay. A replay catalog/backend, live simulation, support/healer
+mechanics, and objective control remain deferred. See
+[`docs/3d_replay_viewer.md`](3d_replay_viewer.md).

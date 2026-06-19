@@ -340,6 +340,18 @@ uv run python scripts/render_replay.py <replay-dir>
 Renderer controls: `Space` pause/play · `←/→` step while paused · `1`/`2`/`4` speed · `Esc` quit.
 Schema details: [`docs/replay_schema.md`](docs/replay_schema.md).
 
+An optional browser-based 3D viewer is also available. It consumes the same
+saved replay files without recomputing simulation state:
+
+```powershell
+cd frontend
+corepack yarn install
+corepack yarn dev
+```
+
+See [`docs/3d_replay_viewer.md`](docs/3d_replay_viewer.md) for controls,
+architecture, demo data, and limitations.
+
 </details>
 
 ---
@@ -358,7 +370,7 @@ A portfolio project earns more trust by being explicit about what it *doesn't* s
 - **Shaping rewards stay on in the final training stage.** Evaluation metrics (wins, damage,
   behavior) are computed from replays and are shaping-independent, but the sparse objective was
   not annealed back in to confirm it sustains the behavior on its own.
-- **Scope.** Objective control, pathfinding, a backend/frontend dashboard, PettingZoo, self-play,
+- **Scope.** Objective control, pathfinding, a full backend/dashboard, PettingZoo, self-play,
   opponent pools, and advanced MARL are not implemented yet.
 
 Suggested follow-ups (non-blocking): randomize spawns, anneal shaping toward zero, train the tank
@@ -384,6 +396,7 @@ src/combatrl/
 scripts/          CLI entry points (run / train / evaluate / parse / render)
 configs/          env, training, and profile YAML configs
 docs/             phase notes & design specs
+frontend/         Vite/React/Three.js replay-only 3D viewer
 artifacts/        checkpoints, evaluation metrics, replays, reports (generated)
 tests/            62 test modules across unit & integration suites
 ```

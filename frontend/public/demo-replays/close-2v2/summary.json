@@ -1,0 +1,16 @@
+{
+  "event_count": 581,
+  "final_tick": 338,
+  "frame_count": 86,
+  "match_id": "mvp_2v2_close_elimination_seed_123",
+  "replay_schema_version": "1.0",
+  "scenario_id": "mvp_2v2_close_elimination",
+  "seed": 123,
+  "team0_alive": 2,
+  "team0_total_hp": 176.0,
+  "team1_alive": 0,
+  "team1_total_hp": 0.0,
+  "terminal": true,
+  "terminal_reason": "elimination",
+  "winner_team_id": 0
+}
