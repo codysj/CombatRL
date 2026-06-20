@@ -12,6 +12,7 @@ interface ArenaSceneProps {
   metadata: ReplayMetadata;
   events: ReplayEvent[];
   selectedAgentId: string | null;
+  followSelected: boolean;
   cameraMode: CameraMode;
   showRanges: boolean;
   showTargets: boolean;
@@ -264,6 +265,7 @@ export function ArenaScene({
   metadata,
   events,
   selectedAgentId,
+  followSelected,
   cameraMode,
   showRanges,
   showTargets,
@@ -448,7 +450,18 @@ export function ArenaScene({
       }
     }
     addEventEffects(group, events, agentsById, arena);
-  }, [events, frame, metadata, selectedAgentId, showRanges, showTargets]);
+    const followedAgent = followSelected && selectedAgentId ? agentsById.get(selectedAgentId) : undefined;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    if (followedAgent && camera && controls) {
+      const world = simulationToWorld(followedAgent.position, arena);
+      const nextTarget = new THREE.Vector3(world[0], 0, world[2]);
+      const offset = nextTarget.clone().sub(controls.target);
+      controls.target.copy(nextTarget);
+      camera.position.add(offset);
+      controls.update();
+    }
+  }, [events, followSelected, frame, metadata, selectedAgentId, showRanges, showTargets]);
 
   return <div className="three-scene" ref={containerRef} />;
 }

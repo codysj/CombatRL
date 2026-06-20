@@ -1,5 +1,11 @@
-export function parseJsonl<T>(text: string): T[] {
+interface JsonlParseOptions<T> {
+  filename?: string;
+  validate?: (value: unknown, lineNumber: number) => T;
+}
+
+export function parseJsonl<T>(text: string, options: JsonlParseOptions<T> = {}): T[] {
   const values: T[] = [];
+  const filename = options.filename ?? "JSONL";
 
   for (const [index, line] of text.split(/\r?\n/).entries()) {
     const trimmed = line.trim();
@@ -7,16 +13,17 @@ export function parseJsonl<T>(text: string): T[] {
       continue;
     }
 
+    let value: unknown;
     try {
-      const value: unknown = JSON.parse(trimmed);
-      if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        throw new Error("line must contain a JSON object");
-      }
-      values.push(value as T);
+      value = JSON.parse(trimmed) as unknown;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Invalid JSONL at line ${index + 1}: ${message}`);
+      throw new Error(`${filename}:line ${index + 1}: invalid JSON: ${message}`);
     }
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      throw new Error(`${filename}:line ${index + 1}: expected a JSON object`);
+    }
+    values.push(options.validate ? options.validate(value, index + 1) : value as T);
   }
 
   return values;

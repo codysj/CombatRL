@@ -14,7 +14,8 @@ describe("parseJsonl", () => {
   });
 
   it("reports the line containing invalid JSON", () => {
-    expect(() => parseJsonl('{"tick":0}\nnot-json')).toThrow("line 2");
+    expect(() => parseJsonl('{"tick":0}\nnot-json', { filename: "frames.jsonl" }))
+      .toThrow("frames.jsonl:line 2: invalid JSON");
   });
 
   it("does not require optional replay fields at parse time", () => {

@@ -431,6 +431,8 @@ CombatRL is built in phases; **P10** (natural-language → profile parsing) is t
 | **P11** | **Backend & frontend dashboard** | 🔜 next |
 
 Design specs and per-phase completion notes live under [`docs/`](docs/).
+Current unfinished work and future ambitions are tracked in
+[`docs/tasks.md`](docs/tasks.md).
 
 ---
 
