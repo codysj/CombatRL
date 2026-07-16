@@ -1,7 +1,7 @@
 """Replay/event-based evaluation metrics.
 
-Metrics are computed from saved frames and events. When optional event payloads
-are absent, the metric falls back to a stable zero/default instead of
+Metrics are computed from saved frames and events. Metrics that require optional
+intent evidence return ``None`` when that evidence is absent instead of
 reconstructing simulator behavior.
 """
 
@@ -86,10 +86,12 @@ def compute_match_metrics_from_frames_events(
     low_hp_chases = 0
     shared_target_attacks = 0
     ally_peel_actions = 0
+    target_intent_attack_actions = 0
     live_action_count = 0
     action_type_counts: dict[ActionType, int] = {at: 0 for at in ActionType}
 
     frame_by_tick = {int(frame.tick): frame for frame in sorted_frames}
+    action_events_by_tick = _action_events_by_tick(sorted_events)
     for event in sorted_events:
         event_type = str(event.event_type)
         source_agent_id = event.source_agent_id
@@ -128,14 +130,25 @@ def compute_match_metrics_from_frames_events(
             if action_type == ActionType.ATTACK_NEAREST:
                 attack_attempts += 1
                 attack_actions += 1
-                if previous_frame is not None and _has_shared_target(
-                    previous_frame, controlled_agent_id
-                ):
-                    shared_target_attacks += 1
-                if previous_frame is not None and _is_ally_peel_action(
-                    previous_frame, controlled_agent_id, action_type
-                ):
-                    ally_peel_actions += 1
+                if "target_intent_id" in payload:
+                    target_intent_attack_actions += 1
+                    target_intent_id = _optional_str(payload.get("target_intent_id"))
+                    if target_intent_id is not None and _has_shared_target_intent(
+                        action_events_by_tick.get(int(event.tick), []),
+                        controlled_agent_id,
+                        controlled_team_id,
+                        target_intent_id,
+                        previous_frame,
+                    ):
+                        shared_target_attacks += 1
+                    if (
+                        target_intent_id is not None
+                        and previous_frame is not None
+                        and _is_ally_peel_target(
+                            previous_frame, controlled_agent_id, target_intent_id
+                        )
+                    ):
+                        ally_peel_actions += 1
             elif action_type == ActionType.NO_OP:
                 no_op_actions += 1
             elif action_type in RETREAT_ACTIONS and previous_frame is not None:
@@ -143,8 +156,6 @@ def compute_match_metrics_from_frames_events(
                     retreat_actions += 1
                 if _is_low_hp_chase(previous_frame, controlled_agent_id, action_type):
                     low_hp_chases += 1
-                if _is_ally_peel_action(previous_frame, controlled_agent_id, action_type):
-                    ally_peel_actions += 1
 
     frame_metrics = _compute_frame_metrics(sorted_frames, controlled_agent_id)
     survival_ticks = frame_metrics["survival_ticks"]
@@ -172,8 +183,15 @@ def compute_match_metrics_from_frames_events(
         "time_in_attack_range_rate": frame_metrics["time_in_attack_range_rate"],
         "time_in_enemy_threat_range_rate": frame_metrics["time_in_enemy_threat_range_rate"],
         "center_control_rate": frame_metrics["center_control_rate"],
-        "shared_target_rate": _safe_div(shared_target_attacks, attack_actions),
-        "ally_peel_rate": _safe_div(ally_peel_actions, live_action_count),
+        "shared_target_rate": _optional_rate(
+            shared_target_attacks, target_intent_attack_actions
+        ),
+        "ally_peel_rate": _optional_rate(
+            ally_peel_actions, target_intent_attack_actions
+        ),
+        "teamwork_intent_evidence_rate": _safe_div(
+            target_intent_attack_actions, attack_actions
+        ),
         "ally_survival_ticks": frame_metrics["ally_survival_ticks"],
         "cohesion_score": frame_metrics["cohesion_score"],
         "attack_action_rate": _safe_div(attack_actions, live_action_count),
@@ -341,7 +359,11 @@ def _empty_metrics() -> dict[str, MetricValue]:
         "final_tick",
         *action_rate_names,
     )
-    return {name: 0.0 for name in names}
+    metrics: dict[str, MetricValue] = {name: 0.0 for name in names}
+    metrics["shared_target_rate"] = None
+    metrics["ally_peel_rate"] = None
+    metrics["teamwork_intent_evidence_rate"] = 0.0
+    return metrics
 
 
 def _agent_by_id(frame: ReplayFrame) -> dict[str, AgentState]:
@@ -444,29 +466,10 @@ def _is_low_hp_chase(
     return action_vector[0] * target_vector[0] + action_vector[1] * target_vector[1] > 0.0
 
 
-def _has_shared_target(frame: ReplayFrame, controlled_agent_id: str) -> bool:
-    agents = _agent_by_id(frame)
-    controlled = agents.get(controlled_agent_id)
-    if controlled is None:
-        return False
-    nearest_enemy = _nearest_agent(
-        controlled,
-        [agent for agent in agents.values() if agent.alive and agent.team_id != controlled.team_id],
-    )
-    if nearest_enemy is None:
-        return False
-    return any(
-        agent.agent_id != controlled_agent_id
-        and agent.team_id == controlled.team_id
-        and agent.current_target_id == nearest_enemy.agent_id
-        for agent in agents.values()
-    )
-
-
-def _is_ally_peel_action(
+def _is_ally_peel_target(
     frame: ReplayFrame,
     controlled_agent_id: str,
-    action_type: ActionType,
+    target_intent_id: str,
 ) -> bool:
     agents = _agent_by_id(frame)
     controlled = agents.get(controlled_agent_id)
@@ -490,14 +493,37 @@ def _is_ally_peel_action(
         threat.attack_range, 8.0
     ):
         return False
-    if action_type == ActionType.ATTACK_NEAREST:
-        return distance(controlled.position, threat.position) <= controlled.attack_range
-    action_vector = _action_vector(action_type)
-    threat_vector = (
-        threat.position[0] - controlled.position[0],
-        threat.position[1] - controlled.position[1],
-    )
-    return action_vector[0] * threat_vector[0] + action_vector[1] * threat_vector[1] > 0.0
+    return threat.agent_id == target_intent_id
+
+
+def _has_shared_target_intent(
+    events: list[EventLog],
+    controlled_agent_id: str,
+    controlled_team_id: int,
+    target_intent_id: str,
+    frame: ReplayFrame | None,
+) -> bool:
+    if frame is None:
+        return False
+    agents = _agent_by_id(frame)
+    for event in events:
+        source_agent_id = event.source_agent_id
+        if source_agent_id is None or source_agent_id == controlled_agent_id:
+            continue
+        source = agents.get(source_agent_id)
+        if source is None or source.team_id != controlled_team_id:
+            continue
+        if _optional_str(event.payload.get("target_intent_id")) == target_intent_id:
+            return True
+    return False
+
+
+def _action_events_by_tick(events: list[EventLog]) -> dict[int, list[EventLog]]:
+    grouped: dict[int, list[EventLog]] = {}
+    for event in events:
+        if event.event_type == "agent_action_selected":
+            grouped.setdefault(int(event.tick), []).append(event)
+    return grouped
 
 
 def _action_vector(action_type: ActionType) -> tuple[float, float]:
@@ -543,6 +569,12 @@ def _safe_div(numerator: float | int, denominator: float | int) -> float:
         return 0.0
     result = float(numerator) / denominator_float
     return result if math.isfinite(result) else 0.0
+
+
+def _optional_rate(numerator: float | int, denominator: float | int) -> float | None:
+    if float(denominator) == 0.0:
+        return None
+    return _safe_div(numerator, denominator)
 
 
 def _optional_int(value: Any) -> int | None:

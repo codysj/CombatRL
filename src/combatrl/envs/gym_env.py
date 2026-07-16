@@ -15,6 +15,7 @@ from combatrl.core.constants import ACTION_SCHEMA_VERSION, OBSERVATION_SCHEMA_VE
 from combatrl.envs.action_codec import ActionCodec
 from combatrl.envs.observation_builder import OBS_DIM, ObservationBuilder, observation_to_numpy
 from combatrl.envs.reward_builder import RewardBuilder
+from combatrl.envs.spawn_randomization import randomize_team_spawns
 from combatrl.profiles.loader import load_profile_by_id
 from combatrl.profiles.modulation import get_candidate_actions, rerank_actions
 from combatrl.schemas.actions import ActionCommand
@@ -47,7 +48,11 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         if self.env_config.action_schema_version != ACTION_SCHEMA_VERSION:
             msg = f"action_schema_version must be {ACTION_SCHEMA_VERSION}"
             raise ValueError(msg)
-        self.simulation_config = load_simulation_config(self.env_config.simulation_config_path)
+        self._base_simulation_config = load_simulation_config(
+            self.env_config.simulation_config_path
+        )
+        self.simulation_config = self._base_simulation_config
+        self._resolved_simulation_config = self.simulation_config
         self.render_mode = render_mode
 
         if self.env_config.controlled_agent_id not in {
@@ -95,6 +100,14 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
         super().reset(seed=seed)
         del options
         self._seed = self._seed if seed is None else seed
+        if self.simulation_config is not self._resolved_simulation_config:
+            self._base_simulation_config = self.simulation_config
+        self.simulation_config = randomize_team_spawns(
+            self._base_simulation_config,
+            self.env_config.spawn_randomization,
+            self._seed,
+        )
+        self._resolved_simulation_config = self.simulation_config
         self._engine = SimulationEngine(config=self.simulation_config, seed=self._seed)
         self._done = False
         self._truncated_error = None
@@ -111,6 +124,11 @@ class CombatRLGymEnv(gym.Env[NDArray[np.float32], int]):
                     self.env_config.controlled_agent_id,
                 ),
                 "events_count": 0,
+                "spawn_positions": {
+                    agent.agent_id: agent.spawn_position
+                    for team in self.simulation_config.teams
+                    for agent in team.agents
+                },
             }
         )
         return observation, info

@@ -31,6 +31,8 @@ Production build and tests:
 cd frontend
 corepack yarn typecheck
 corepack yarn test
+corepack yarn test:browser
+corepack yarn benchmark
 corepack yarn build
 ```
 
@@ -132,3 +134,11 @@ a new splitting or dependency review.
   improve tactical clarity enough to justify more assets and controls.
 - Live simulation and generated 3D assets are not included.
 - The viewer does not replace or modify the existing Pygame replay renderer.
+
+Browser regression coverage uses Playwright with local Microsoft Edge and
+fixture files, including bundled loading, picker-free local import, recoverable
+invalid input, playback shortcuts, agent selection/follow, and compact layout.
+Failures retain a trace and screenshot in `frontend/test-results`.
+
+Performance budgets and remaining measurement gaps are documented in
+`docs/replay_performance.md`.

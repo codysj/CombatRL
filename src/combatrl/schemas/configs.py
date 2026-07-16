@@ -110,6 +110,15 @@ def load_simulation_config(path: str | Path) -> SimulationConfig:
     return SimulationConfig.model_validate(raw_config)
 
 
+class SpawnRandomizationConfig(BaseModel):
+    """Seeded team-translation bounds applied by the Gym wrapper."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_offset_x: float = Field(default=0.0, ge=0.0)
+    max_offset_y: float = Field(default=0.0, ge=0.0)
+
+
 class EnvironmentConfig(BaseModel):
     """Configuration for the single-agent Gymnasium wrapper."""
 
@@ -134,6 +143,7 @@ class EnvironmentConfig(BaseModel):
     decision_interval_ticks: int = Field(default=4, gt=0)
     terminate_on_controlled_death: bool = False
     seed: int | None = None
+    spawn_randomization: SpawnRandomizationConfig | None = None
 
 
 def load_environment_config(path: str | Path) -> EnvironmentConfig:

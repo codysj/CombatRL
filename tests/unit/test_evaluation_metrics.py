@@ -72,7 +72,8 @@ def test_timeout_and_missing_optional_fields_do_not_crash() -> None:
 
     assert metrics["draw_or_timeout"] == 1
     assert metrics["no_op_rate"] == 1.0
-    assert metrics["shared_target_rate"] == 0.0
+    assert metrics["shared_target_rate"] is None
+    assert metrics["ally_peel_rate"] is None
     assert metrics["low_hp_chase_rate"] == 0.0
 
 
@@ -263,3 +264,28 @@ def _action_event(
         source_agent_id=agent_id,
         payload=merged_payload,
     )
+
+
+def test_teamwork_metrics_use_explicit_target_intent() -> None:
+    frames = _frames(winner_team_id=None, terminal_reason="timeout")
+    events = [
+        _action_event(
+            1,
+            "team0_ranged_dps_0",
+            "ATTACK_NEAREST",
+            payload={"target_intent_id": "team1_ranged_dps_0"},
+        ),
+        _action_event(
+            1,
+            "team0_tank_0",
+            "ATTACK_NEAREST",
+            payload={"target_intent_id": "team1_ranged_dps_0"},
+        ),
+    ]
+
+    metrics = compute_match_metrics_from_frames_events(
+        frames, events, "team0_ranged_dps_0"
+    )
+
+    assert metrics["shared_target_rate"] == 1.0
+    assert metrics["teamwork_intent_evidence_rate"] == 1.0

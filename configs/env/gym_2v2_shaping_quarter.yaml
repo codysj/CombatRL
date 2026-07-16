@@ -1,0 +1,18 @@
+env_id: CombatRL-2v2-Shaping-Quarter-v0
+simulation_config_path: configs/env/mvp_2v2_elimination.yaml
+controlled_agent_id: team0_ranged_dps_0
+opponent_policy_ids: [aggressive, random]
+teammate_policy_id: protector
+scripted_policy_by_agent_id: null
+reward_config:
+  approach_reward: 0.0025
+  attack_range_bonus: 0.00125
+  attack_landed_bonus: 0.0125
+  edge_penalty: 0.00125
+observation_schema_version: "1.0"
+action_schema_version: "1.0"
+capture_replays: false
+replay_sample_rate: 0.0
+decision_interval_ticks: 4
+terminate_on_controlled_death: false
+seed: 42

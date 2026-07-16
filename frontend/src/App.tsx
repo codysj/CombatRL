@@ -253,7 +253,13 @@ export default function App() {
         </section>
 
         <aside className="sidebar">
-          <ReplayInfoPanel metadata={replay.metadata} summary={replay.summary} selectedAgent={selectedAgent} />
+          <ReplayInfoPanel
+            metadata={replay.metadata}
+            summary={replay.summary}
+            selectedAgent={selectedAgent}
+            agents={frame.agents}
+            onSelectAgent={setSelectedAgentId}
+          />
           <EventFeed events={feedEvents} />
           {(!hasRanges || !hasTargets || replay.events.length === 0) && (
             <section className="panel availability-note">

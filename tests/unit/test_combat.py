@@ -12,6 +12,20 @@ def make_engine() -> SimulationEngine:
     return engine
 
 
+def test_attack_action_event_includes_additive_target_intent() -> None:
+    engine = make_engine()
+    attacker_id = "team0_ranged_dps_0"
+    engine.step([ActionCommand(agent_id=attacker_id, action_type=ActionType.ATTACK_NEAREST)])
+
+    event = next(
+        item
+        for item in engine.last_events
+        if item.event_type == "agent_action_selected"
+        and item.source_agent_id == attacker_id
+    )
+    assert event.payload["target_intent_id"] == "team1_tank_0"
+
+
 def test_attack_nearest_damages_enemy_in_range() -> None:
     engine = make_engine()
     target = engine.state.agents["team1_tank_0"]

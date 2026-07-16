@@ -77,6 +77,8 @@ input[type="range"] { width: 100%; accent-color: var(--cyan); }
 .agent-card { margin-top: 12px; padding: 12px; background: rgba(23, 49, 69, 0.55); border: 1px solid rgba(111, 216, 255, 0.13); }
 .agent-card h3 { margin: 2px 0 9px; overflow-wrap: anywhere; font-size: 1.1rem; }
 .agent-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; color: #9fb6c7; font-size: 0.67rem; text-transform: capitalize; }
+.agent-select-list { display: grid; gap: 6px; margin-top: 12px; }
+.agent-select-list button { overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .selection-hint, .muted, .availability-note p { margin: 12px 0 0; color: #71899c; font-size: 0.72rem; line-height: 1.55; }
 .event-panel { flex: 1; min-height: 280px; }
 .event-list { display: flex; max-height: 410px; overflow-y: auto; flex-direction: column; }

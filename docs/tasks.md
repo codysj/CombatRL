@@ -6,7 +6,7 @@ but task status must be updated here.
 
 ```yaml
 tracker_version: 1
-last_updated: 2026-06-19
+last_updated: 2026-07-16
 status_values: [in_progress, not_started, blocked, done, cancelled]
 priority_values: [P0, P1, P2, P3]
 scope_values: [scoped, partially_scoped, unscoped]
@@ -36,13 +36,16 @@ scope_values: [scoped, partially_scoped, unscoped]
 | ID | Priority | Status | Scope | Title |
 |---|---|---|---|---|
 | CRL-001 | P1 | done | scoped | Harden replay viewer ingestion |
-| CRL-002 | P1 | not_started | unscoped | Scope the P11 backend and dashboard |
-| CRL-003 | P1 | not_started | partially_scoped | Improve training distribution robustness |
-| CRL-004 | P1 | not_started | partially_scoped | Validate reward-shaping removal |
-| CRL-005 | P2 | not_started | partially_scoped | Improve teamwork intent and metrics |
+| CRL-002 | P1 | in_progress | scoped | Scope the P11 backend and dashboard |
+| CRL-003 | P1 | in_progress | scoped | Improve training distribution robustness |
+| CRL-004 | P1 | in_progress | scoped | Validate reward-shaping removal |
+| CRL-005 | P2 | done | scoped | Improve teamwork intent and metrics |
 | CRL-006 | P2 | done | scoped | Finish replay viewer product polish |
-| CRL-007 | P2 | not_started | partially_scoped | Automate browser viewer regression coverage |
-| CRL-008 | P2 | not_started | partially_scoped | Profile large-replay performance |
+| CRL-007 | P2 | done | scoped | Automate browser viewer regression coverage |
+| CRL-008 | P2 | in_progress | scoped | Profile large-replay performance |
+| CRL-009 | P1 | not_started | scoped | Define local artifact catalog contracts |
+| CRL-010 | P1 | not_started | scoped | Implement the read-only artifact API |
+| CRL-011 | P2 | not_started | scoped | Build the experiment dashboard |
 | CRL-101 | P2 | not_started | unscoped | Objective-control mode |
 | CRL-102 | P2 | not_started | unscoped | Support/healer role |
 | CRL-103 | P2 | not_started | unscoped | Pathfinding and richer arenas |
@@ -59,58 +62,65 @@ task is explicitly deprioritized.
 
 ### CRL-002: Scope the P11 backend and dashboard
 
-- Status: `not_started`
+- Status: `in_progress`
 - Priority: `P1`
-- Scope: `unscoped`
+- Scope: `scoped`
 - Area: `product/backend/frontend`
 - Current state: P11 is the next roadmap phase. A replay-only frontend exists,
   but there is no backend, replay catalog, experiment browser, or full dashboard.
 - Remaining work:
-  - Write a focused P11 design that defines users, workflows, API boundaries,
-    local artifact discovery, security constraints, and non-goals.
-  - Decide whether FastAPI is justified and define the minimal API if it is.
-  - Separate replay viewing from training/evaluation control surfaces.
-  - Define acceptance tests before implementation begins.
+  - Obtain product approval for `docs/p11_backend_dashboard_scope.md`.
+  - Begin CRL-009 only after the read-only local boundary is approved.
 - Done when:
   - An approved P11 scope document and implementation plan exist.
   - Backend and frontend ownership boundaries are explicit.
   - Tasks derived from the plan have acceptance criteria and dependencies.
 - Dependencies: CRL-001 should inform replay-related API requirements.
 - Sources: `README.md` roadmap, `docs/phase_p10.md`, `docs/nlp.md`
+- Progress:
+  - The scope document defines users, workflows, FastAPI justification, API and
+    ownership boundaries, artifact discovery, security, non-goals, tests, and
+    delivery tasks CRL-009 through CRL-011.
 
 ### CRL-003: Improve training distribution robustness
 
-- Status: `not_started`
+- Status: `in_progress`
 - Priority: `P1`
-- Scope: `partially_scoped`
+- Scope: `scoped`
 - Area: `training/evaluation`
 - Current state: The curriculum-trained ranged policy performs strongly on a
   narrow scenario with fixed spawns and limited opponent variation. The tank
   role is not comparably trained.
 - Remaining work:
-  - Add controlled spawn randomization without weakening determinism.
-  - Evaluate against stronger and mixed opponent policies across enough seeds.
   - Train and evaluate the tank-controlled slot.
-  - Define generalization gates before making broader learning claims.
+  - Inspect saved replay samples and document recurring ranged-policy failures.
+  - Repeat learned-policy comparisons after a tank checkpoint exists.
 - Done when:
   - Evaluation covers randomized spawns, mixed opponents, and both controlled roles.
   - Results include replay inspection and at least 30 fixed seeds per claim.
   - Performance and failure modes are documented without overstating generality.
 - Dependencies: Existing curriculum and evaluation framework.
 - Sources: `README.md` limitations, `docs/rl_training.md`
+- Progress:
+  - Added deterministic, arena-bounded team spawn translation and ranged/tank
+    generalization configs.
+  - Defined 30-seed, mixed-opponent, replay-sampling gates.
+  - Ranged S5 randomized-spawn result: 26 wins, 4 timeouts, 0 losses.
+  - Tank heuristic plumbing baseline: 30 wins but only 5.87 mean controlled
+    damage; this does not satisfy the learned tank requirement.
 
 ### CRL-004: Validate reward-shaping removal
 
-- Status: `not_started`
+- Status: `in_progress`
 - Priority: `P1`
-- Scope: `partially_scoped`
+- Scope: `scoped`
 - Area: `training/rewards`
 - Current state: Reward shaping remains enabled in the final training stage;
   evaluation metrics are shaping-independent, but sustained behavior under an
   annealed or sparse objective has not been demonstrated.
 - Remaining work:
-  - Design an annealing or fine-tuning experiment that approaches zero shaping.
-  - Compare shaped, annealed, and canonical sparse objectives on fixed seeds.
+  - Run full-budget training for at least three seeds per stage.
+  - Compare shaped, annealed, and canonical sparse checkpoints on fixed seeds.
   - Inspect action histograms and representative replays for regression.
 - Done when:
   - The experiment is reproducible from committed configs and commands.
@@ -118,58 +128,22 @@ task is explicitly deprioritized.
   - Findings and limitations are documented.
 - Dependencies: CRL-003 may supply broader evaluation scenarios.
 - Sources: `README.md` limitations, `docs/rl_training.md`
-
-### CRL-005: Improve teamwork intent and metrics
-
-- Status: `not_started`
-- Priority: `P2`
-- Scope: `partially_scoped`
-- Area: `replay/evaluation`
-- Current state: Some teamwork metrics are best-effort because replay events do
-  not always expose rich target or tactical intent.
-- Remaining work:
-  - Identify metrics that cannot be made reliable from existing saved data.
-  - Propose additive event payloads without changing existing event semantics.
-  - Add validator, round-trip, and evaluation tests for approved payloads.
-- Done when:
-  - Teamwork metrics have documented definitions and required evidence.
-  - Metrics report unavailable data explicitly instead of inferring unsupported intent.
-  - Any schema evolution is versioned and backward-compatible.
-- Dependencies: Replay schema design review.
-- Sources: `docs/profiles.md`, `docs/evaluation.md`, `docs/replay_schema.md`
-
-### CRL-007: Automate browser viewer regression coverage
-
-- Status: `not_started`
-- Priority: `P2`
-- Scope: `partially_scoped`
-- Area: `frontend/testing`
-- Current state: Parser, validation, interpolation, and shortcut behavior have
-  unit coverage. Browser behavior still relies on manual acceptance because the
-  in-app browser runner is unavailable in the current Windows sandbox.
-- Remaining work:
-  - Select a lightweight browser-test harness compatible with Yarn Plug'n'Play.
-  - Cover bundled loading, local directory fixtures, recoverable invalid input,
-    playback shortcuts, agent selection/follow, and compact viewports.
-  - Add the browser suite to the supported local or CI verification workflow.
-- Done when:
-  - Browser acceptance scenarios run repeatably without manual file-picker steps.
-  - Failures capture actionable DOM state or screenshots.
-  - The suite does not require cloud services or live simulation.
-- Dependencies: CRL-001 and CRL-006.
-- Sources: `docs/3d_replay_viewer.md`
+- Progress:
+  - Added half, quarter, and sparse environment/training configs and a committed
+    protocol.
+  - The complete warm-start chain passed 1,024-timestep smoke runs. No behavior
+    conclusion is claimed from those smoke artifacts.
 
 ### CRL-008: Profile large-replay performance
 
-- Status: `not_started`
+- Status: `in_progress`
 - Priority: `P2`
-- Scope: `partially_scoped`
+- Scope: `scoped`
 - Area: `frontend/replay/performance`
 - Current state: Replay files are read and parsed fully in memory, which is
   appropriate for current artifacts but has no documented size budget.
 - Remaining work:
-  - Define representative replay sizes and load/render performance budgets.
-  - Measure parsing latency, memory use, timeline updates, and scene rebuild cost.
+  - Measure browser memory use and isolate Three.js scene rebuild cost.
   - Introduce streaming parsing, indexing, or a Web Worker only if measurements
     demonstrate a need.
 - Done when:
@@ -178,6 +152,62 @@ task is explicitly deprioritized.
   - Any optimization preserves replay fidelity and existing schema semantics.
 - Dependencies: CRL-001.
 - Sources: `docs/3d_replay_viewer.md`, `docs/replay_schema.md`
+- Progress:
+  - Added repeatable 20,000-line parse and 5,000-frame timeline budgets.
+  - Edge browser regression enforces a five-second bundled-load budget.
+  - Current measurements pass; no optimization was introduced.
+
+### CRL-009: Define local artifact catalog contracts
+
+- Status: `not_started`
+- Priority: `P1`
+- Scope: `scoped`
+- Area: `backend/contracts`
+- Current state: P11 has an implementation-ready scope but no catalog models or
+  fixture-based contract tests.
+- Remaining work:
+  - Define opaque run/replay identifiers and validated response models.
+  - Build empty, valid, corrupt, partial, and path-escape fixture trees.
+  - Test stable ordering, diagnostics, root containment, and file allowlists.
+- Done when:
+  - Contract tests define all CRL-010 endpoint behavior without a running server.
+  - No response exposes unrestricted host filesystem paths.
+- Dependencies: CRL-002 approval.
+- Sources: `docs/p11_backend_dashboard_scope.md`
+
+### CRL-010: Implement the read-only artifact API
+
+- Status: `not_started`
+- Priority: `P1`
+- Scope: `scoped`
+- Area: `backend/api`
+- Current state: No backend dependency or process exists.
+- Remaining work:
+  - Add the minimal FastAPI service defined by the approved P11 contract.
+  - Bind to loopback, configure allowlisted roots, and expose read-only endpoints.
+  - Add API integration tests over CRL-009 fixtures.
+- Done when:
+  - Health, run, metrics, replay manifest, and allowlisted file endpoints pass.
+  - Traversal and out-of-root access are rejected.
+- Dependencies: CRL-009.
+- Sources: `docs/p11_backend_dashboard_scope.md`
+
+### CRL-011: Build the experiment dashboard
+
+- Status: `not_started`
+- Priority: `P2`
+- Scope: `scoped`
+- Area: `frontend/dashboard`
+- Current state: The frontend opens replays but has no experiment catalog UI.
+- Remaining work:
+  - Add empty/error/loading states, run filtering, metrics comparison, and replay handoff.
+  - Preserve local directory import as a backend-independent workflow.
+  - Add browser contract fixtures and accessibility coverage.
+- Done when:
+  - A user can browse validated local runs and open a catalog replay.
+  - The UI does not start or mutate training, evaluation, or simulation.
+- Dependencies: CRL-010.
+- Sources: `docs/p11_backend_dashboard_scope.md`, `docs/3d_replay_viewer.md`
 
 ## Unscoped Ambitions
 
@@ -281,6 +311,44 @@ non-goals, split large items into near-term tasks, and update the task index.
 - Sources: `docs/CombatRL_Canonical_Project_Spec.md` section 24.3
 
 ## Completed Tasks
+
+### CRL-005: Improve teamwork intent and metrics
+
+- Status: `done`
+- Priority: `P2`
+- Scope: `scoped`
+- Area: `replay/evaluation`
+- Completed: `2026-07-16`
+- Final state:
+  - `agent_action_selected` attack payloads include additive
+    `target_intent_id` evidence without changing replay schema version `1.0`.
+  - Shared-target and ally-peel metrics use explicit evidence and return `null`
+    for older replays where intent is unavailable.
+  - `teamwork_intent_evidence_rate` reports evidence coverage.
+- Verification:
+  - Simulator event, replay/evaluation, aggregation compatibility, and focused
+    regression tests pass.
+- Dependencies: Replay schema design review.
+- Sources: `docs/evaluation.md`, `docs/replay_schema.md`
+
+### CRL-007: Automate browser viewer regression coverage
+
+- Status: `done`
+- Priority: `P2`
+- Scope: `scoped`
+- Area: `frontend/testing`
+- Completed: `2026-07-16`
+- Final state:
+  - Playwright runs through Yarn Plug'n'Play against local Microsoft Edge.
+  - Scenarios cover bundled loading, directory fixture import, recoverable
+    invalid input, playback shortcuts, accessible agent selection/follow, and a
+    compact viewport.
+  - Failures retain screenshots and DOM error context without cloud services or
+    live simulation.
+- Verification:
+  - `corepack yarn test:browser`: 3 passed.
+- Dependencies: CRL-001 and CRL-006.
+- Sources: `docs/3d_replay_viewer.md`, `frontend/playwright.config.ts`
 
 ### CRL-001: Harden replay viewer ingestion
 

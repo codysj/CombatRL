@@ -52,10 +52,11 @@ Core per-match metrics include:
 - behavior/action: `attack_action_rate`, `retreat_action_rate`,
   `low_hp_chase_rate`, `no_op_rate`, `invalid_action_rate`
 
-Some teamwork metrics are best-effort with the current replay payloads.
-`shared_target_rate` uses target information when present and otherwise falls
-back to `0.0`. `ally_peel_rate` uses nearby threatened ally and action/event
-signals when available.
+`shared_target_rate` and `ally_peel_rate` require `target_intent_id` on attack
+action events. They return `null` for older replays without that evidence
+instead of treating unavailable intent as a measured zero.
+`teamwork_intent_evidence_rate` reports the fraction of controlled attack
+actions carrying the required evidence.
 
 Aggregates include `mean_<metric>`, `std_<metric>`, simple min/max values for
 key numeric metrics, `num_matches`, `win_rate`, `loss_rate`, and `timeout_rate`.

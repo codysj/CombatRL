@@ -4,13 +4,21 @@ interface ReplayInfoPanelProps {
   metadata: ReplayMetadata;
   summary: ReplaySummary;
   selectedAgent?: AgentSnapshot;
+  agents: AgentSnapshot[];
+  onSelectAgent: (agentId: string) => void;
 }
 
 function roleLabel(role: string): string {
   return role.replaceAll("_", " ");
 }
 
-export function ReplayInfoPanel({ metadata, summary, selectedAgent }: ReplayInfoPanelProps) {
+export function ReplayInfoPanel({
+  metadata,
+  summary,
+  selectedAgent,
+  agents,
+  onSelectAgent,
+}: ReplayInfoPanelProps) {
   return (
     <section className="panel info-panel">
       <div className="panel-heading">
@@ -49,6 +57,19 @@ export function ReplayInfoPanel({ metadata, summary, selectedAgent }: ReplayInfo
       ) : (
         <p className="selection-hint">Select a unit in the arena for current combat details.</p>
       )}
+      <div className="agent-select-list" aria-label="Replay agents">
+        {agents.map((agent) => (
+          <button
+            type="button"
+            key={agent.agent_id}
+            aria-pressed={selectedAgent?.agent_id === agent.agent_id}
+            aria-label={`Select ${agent.agent_id}`}
+            onClick={() => onSelectAgent(agent.agent_id)}
+          >
+            {agent.agent_id}
+          </button>
+        ))}
+      </div>
     </section>
   );
 }

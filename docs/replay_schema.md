@@ -62,7 +62,9 @@ Required event types currently emitted:
 - `match_ended`
 
 For profile-aware runs, `agent_action_selected` payloads may include
-`policy_id`, `profile_id`, `valid`, and `fallback_used`. `agent_moved` payloads
+`policy_id`, `profile_id`, `valid`, and `fallback_used`. Attack actions also
+include additive `target_intent_id` evidence: the nearest alive enemy selected
+by `ATTACK_NEAREST`, or `null` when no enemy exists. `agent_moved` payloads
 include `action_type` when movement occurred. These are additive payload fields
 inside the existing replay schema version.
 

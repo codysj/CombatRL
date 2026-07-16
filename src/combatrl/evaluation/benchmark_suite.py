@@ -29,7 +29,11 @@ from combatrl.profiles.loader import load_profile, load_profile_by_id
 from combatrl.replay.validators import validate_replay
 from combatrl.replay.writer import ReplayWriter
 from combatrl.schemas.actions import ActionCommand
-from combatrl.schemas.configs import EnvironmentConfig, load_simulation_config
+from combatrl.schemas.configs import (
+    EnvironmentConfig,
+    load_environment_config,
+    load_simulation_config,
+)
 from combatrl.schemas.evaluation import (
     EvaluationResult,
     MatchEvaluationRecord,
@@ -379,6 +383,17 @@ def _policy_actions(
 
 
 def _env_config_for_scenario(scenario_spec: ScenarioSpec) -> EnvironmentConfig:
+    if scenario_spec.env_config_path is not None:
+        return load_environment_config(scenario_spec.env_config_path).model_copy(
+            update={
+                "simulation_config_path": scenario_spec.simulation_config_path,
+                "controlled_agent_id": scenario_spec.controlled_agent_id,
+                "opponent_policy_ids": scenario_spec.opponent_policy_ids,
+                "teammate_policy_id": scenario_spec.teammate_policy_id,
+                "capture_replays": False,
+                "replay_sample_rate": 0.0,
+            }
+        )
     return EnvironmentConfig(
         env_id=f"CombatRL-Eval-{scenario_spec.scenario_id}",
         simulation_config_path=scenario_spec.simulation_config_path,

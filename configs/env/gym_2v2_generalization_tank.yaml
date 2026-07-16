@@ -1,0 +1,19 @@
+env_id: CombatRL-2v2-Generalization-Tank-v0
+simulation_config_path: configs/env/mvp_2v2_elimination.yaml
+controlled_agent_id: team0_tank_0
+opponent_policy_ids:
+  - aggressive
+  - random
+teammate_policy_id: kiter
+scripted_policy_by_agent_id: null
+reward_config: {}
+observation_schema_version: "1.0"
+action_schema_version: "1.0"
+capture_replays: false
+replay_sample_rate: 0.0
+decision_interval_ticks: 4
+terminate_on_controlled_death: false
+seed: 42
+spawn_randomization:
+  max_offset_x: 8.0
+  max_offset_y: 6.0

@@ -127,6 +127,11 @@ class SimulationEngine:
 
         for agent_id in sorted(self._state.agents):
             event_payload: dict[str, object] = {"action_type": action_by_agent_id[agent_id].value}
+            if action_by_agent_id[agent_id] == ActionType.ATTACK_NEAREST:
+                target = self._nearest_alive_enemy(self._state.agents[agent_id])
+                event_payload["target_intent_id"] = (
+                    None if target is None else target.agent_id
+                )
             event_payload.update(action_metadata.get(agent_id, {}))
             self._append_event(
                 events=events,
@@ -304,6 +309,20 @@ class SimulationEngine:
             and agent.team_id != attacker.team_id
             and distance(attacker.position, agent.position) <= attacker.attack_range
         ]
+        return self._nearest_candidate(attacker, candidates)
+
+    def _nearest_alive_enemy(self, attacker: AgentState) -> AgentState | None:
+        candidates = [
+            agent
+            for agent in self._state.agents.values()
+            if agent.alive and agent.team_id != attacker.team_id
+        ]
+        return self._nearest_candidate(attacker, candidates)
+
+    @staticmethod
+    def _nearest_candidate(
+        attacker: AgentState, candidates: list[AgentState]
+    ) -> AgentState | None:
         if not candidates:
             return None
 
